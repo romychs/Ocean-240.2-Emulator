@@ -73,13 +73,13 @@ const KBD_DD78CTR = 0x43 //	Сonfig: [1][ma1,ma0][0-aO|1-aI],[0-chO,1-chI],[mb],
  * КР580ВИ53 DD70
  */
 
-// TMR_DD70C1 Timer counter 1
+// TMR_DD70C1 Timer load 1
 const TMR_DD70C1 = 0x60
 
-// TMR_DD70C2 Timer counter 2
+// TMR_DD70C2 Timer load 2
 const TMR_DD70C2 = 0x61
 
-// TMR_DD70C3 Timer counter 3
+// TMR_DD70C3 Timer load 3
 const TMR_DD70C3 = 0x62
 
 /*
@@ -99,6 +99,15 @@ const TMR_DD70CTR = 0x63
 
 // PIC_DD75RS RS Port
 const PIC_DD75RS = 0x80
+
+const Rst0SysFlag = 0x01 // System interrupt
+const Rst1KbdFlag = 0x02 // Keyboard interrupt
+const Rst2SerFlag = 0x04 // Serial interface interrupt
+const RstЗLptFlag = 0x08 // Printer ready
+const Rst4TmrFlag = 0x10 // System timer
+const Rst5PwrFlag = 0x20 // Power int
+const Rst6UsrFlag = 0x40 // User device 1 interrupt
+const Rst7UsrFlag = 0x80 // User device 1 interrupt
 
 // PIC_DD75RM RM Port
 const PIC_DD75RM = 0x81

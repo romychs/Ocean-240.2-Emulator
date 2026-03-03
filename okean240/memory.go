@@ -25,12 +25,13 @@ const (
 )
 
 type RamBlock struct {
+	id     byte
 	memory [RamBlockSize]byte
 }
 
 type Memory struct {
-	allMemory    [RamBlocks]RamBlock
-	memoryWindow [RamWindows]RamBlock
+	allMemory    [RamBlocks]*RamBlock
+	memoryWindow [RamWindows]*RamBlock
 	rom0         RamBlock // monitor + monitor
 	rom1         RamBlock // cpm + monitor
 	config       byte
@@ -52,12 +53,15 @@ type MemoryInterface interface {
 func (m *Memory) Init(monFile string, cmpFile string) {
 
 	// empty RAM
+	var id byte = 0
 	for block := range m.allMemory {
 		rb := RamBlock{}
+		rb.id = id
+		id++
 		for addr := 0; addr < RamBlockSize; addr++ {
 			rb.memory[addr] = RamDefaultInitPattern
 		}
-		m.allMemory[block] = rb
+		m.allMemory[block] = &rb
 	}
 
 	// Load ROM files and init ROM0,1
@@ -71,7 +75,9 @@ func (m *Memory) Init(monFile string, cmpFile string) {
 		log.Fatal(err)
 	}
 	m.rom0 = RamBlock{}
+	m.rom0.id = 100
 	m.rom1 = RamBlock{}
+	m.rom0.id = 101
 	half := RamBlockSize / 2
 	for i := 0; i < half; i++ {
 		// mon+mon
@@ -92,7 +98,7 @@ func (m *Memory) Configure(value byte) {
 		// RST bit set just after System RESET
 		// All memoryWindow windows points to ROM0 (monitor)
 		for i := 0; i < RamWindows; i++ {
-			m.memoryWindow[i] = m.rom0
+			m.memoryWindow[i] = &m.rom0
 		}
 	} else {
 		// Map RAM blocks to windows
@@ -101,14 +107,14 @@ func (m *Memory) Configure(value byte) {
 			m.memoryWindow[i] = m.allMemory[sp+i]
 		}
 		// Map two hi windows to low windows in 32k flag set
-		if m.config&AccessHiBit == 0 {
+		if m.config&AccessHiBit == 1 {
 			m.memoryWindow[WindowNo0] = m.memoryWindow[WindowNo2]
 			m.memoryWindow[WindowNo1] = m.memoryWindow[WindowNo3]
 		}
 		// If ROM enabled, map ROM to last window
 		if m.config&ROMDisBit == 0 {
 			// If ROM enabled, CP/M + Mon at window 3 [0xC000:0xFFFF]
-			m.memoryWindow[WindowNo3] = m.rom1
+			m.memoryWindow[WindowNo3] = &m.rom1
 		}
 	}
 }
@@ -122,5 +128,10 @@ func (m *Memory) MemRead(addr uint16) byte {
 }
 
 func (m *Memory) MemWrite(addr uint16, val byte) {
-	m.memoryWindow[addr>>14].memory[addr&0x3fff] = val
+	window := addr >> 14
+	offset := addr & 0x3fff
+	if window == 1 {
+		//log.Debugf("at vram [%2x][%4x]", window, offset)
+	}
+	m.memoryWindow[window].memory[offset] = val
 }

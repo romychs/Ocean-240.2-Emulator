@@ -7,8 +7,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const defaultMonitorFile = "okean240/MON_r6.BIN"
-const defaultCPMFile = "okean240/CPM_r7.BIN"
+const defaultMonitorFile = "rom/MON_v5.bin"
+const defaultCPMFile = "rom/CPM_v5.bin"
 
 type OkEmuConfig struct {
 	LogFile     string `yaml:"logFile"`

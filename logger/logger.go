@@ -3,6 +3,7 @@ package logger
 import (
 	"bufio"
 	"fmt"
+	"okemu/config"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -53,7 +54,7 @@ func FlushLogs() {
 }
 
 // ReconfigureLogging Reconfigure logging by config values
-func ReconfigureLogging(config *config.ServiceConfig) {
+func ReconfigureLogging(config *config.OkEmuConfig) {
 	// redirect logging if log file specified
 	if len(config.LogFile) > 0 {
 		var err error

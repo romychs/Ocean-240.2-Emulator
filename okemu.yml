@@ -1,4 +1,4 @@
 logFile: "okemu.log"
 logLevel: "info"
-monitorFile: "okean240/MON_r6.BIN"
-cpmFile: "okean240/CPM_r7.BIN"
+monitorFile: "rom/MON_v5.bin"
+cpmFile: "rom/CPM_v5.bin"
