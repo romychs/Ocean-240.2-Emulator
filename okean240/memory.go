@@ -38,7 +38,7 @@ type Memory struct {
 }
 
 type MemoryInterface interface {
-	// Init - Initialize memory at "computer start"
+	// Init - Initialize memory at "computer started"
 	Init(rom0 string, rom1 string)
 	// Configure - Set memory configuration
 	Configure(value byte)
@@ -64,7 +64,7 @@ func (m *Memory) Init(monFile string, cmpFile string) {
 		m.allMemory[block] = &rb
 	}
 
-	// Load ROM files and init ROM0,1
+	// Command ROM files and init ROM0,1
 	// Read the entire file into a byte slice
 	rom0bin, err := os.ReadFile(monFile)
 	if err != nil {

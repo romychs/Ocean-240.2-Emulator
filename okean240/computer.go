@@ -5,6 +5,7 @@ import (
 	"okemu/config"
 	"okemu/z80em"
 
+	"fyne.io/fyne/v2"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -22,12 +23,17 @@ type ComputerType struct {
 	bgColor       byte
 	dd70          *Timer8253
 	dd72          *Sio8251
+	fdc           *FDCType
+	kbdBuffer     []byte
+	vShift        byte
+	hShift        byte
 }
 
 const VRAMBlock0 = 3
 const VRAMBlock1 = 7
 const VidVsuBit = 0x80
 const VidColorBit = 0x40
+const KbdBufferSize = 3
 
 type ComputerInterface interface {
 	Run()
@@ -35,6 +41,8 @@ type ComputerInterface interface {
 	GetPixel(x uint16, y uint16) color.RGBA
 	Do() uint64
 	TimerClk()
+	PutKey(key *fyne.KeyEvent)
+	PutCtrlKey(shortcut fyne.Shortcut)
 }
 
 func (c *ComputerType) M1MemRead(addr uint16) byte {
@@ -47,68 +55,6 @@ func (c *ComputerType) MemRead(addr uint16) byte {
 
 func (c *ComputerType) MemWrite(addr uint16, val byte) {
 	c.memory.MemWrite(addr, val)
-}
-
-func (c *ComputerType) IORead(port uint16) byte {
-	switch port & 0x00ff {
-	case PIC_DD75RS:
-		v := c.ioPorts[PIC_DD75RS]
-		c.ioPorts[PIC_DD75RS] = 0
-		return v
-	default:
-		log.Debugf("IORead from port: %x", port)
-	}
-	return c.ioPorts[byte(port&0x00ff)]
-}
-
-func (c *ComputerType) IOWrite(port uint16, val byte) {
-	bp := byte(port & 0x00ff)
-	c.ioPorts[bp] = val
-	//log.Debugf("OUT (%x), %x", bp, val)
-	switch bp {
-	case SYS_DD17PB:
-		if c.dd17EnableOut {
-			c.memory.Configure(val)
-		}
-	case SYS_DD17CTR:
-		c.dd17EnableOut = val == 0x80
-	case VID_DD67PB:
-		if val&VidVsuBit == 0 {
-			// video page 0
-			c.vRAM = c.memory.allMemory[VRAMBlock0]
-		} else {
-			// video page 1
-			c.vRAM = c.memory.allMemory[VRAMBlock1]
-		}
-		if val&VidColorBit != 0 {
-			c.colorMode = true
-			c.screenWidth = 256
-		} else {
-			c.colorMode = false
-			c.screenWidth = 512
-		}
-		c.palette = val & 0x07
-		c.bgColor = val & 0x38 >> 3
-	case DD67CTR:
-
-	case TMR_DD70CTR:
-		// Timer VI63 config register
-		c.dd70.Configure(val)
-	case TMR_DD70C1:
-		// Timer VI63 counter0 register
-		c.dd70.Load(0, val)
-	case TMR_DD70C2:
-		// Timer VI63 counter1 register
-		c.dd70.Load(1, val)
-	case TMR_DD70C3:
-		// Timer VI63 counter2 register
-		c.dd70.Load(2, val)
-
-	case KBD_DD78CTR:
-	default:
-		//log.Debugf("OUT to Unknown port (%x), %x", bp, val)
-
-	}
 }
 
 // New Builds new computer
@@ -127,8 +73,12 @@ func New(cfg *config.OkEmuConfig) *ComputerType {
 	c.palette = 0
 	c.bgColor = 0
 
+	c.vShift = 0
+	c.hShift = 0
+
 	c.dd70 = NewTimer8253()
 	c.dd72 = NewSio8251()
+	c.fdc = NewFDCType()
 
 	return &c
 }
@@ -136,6 +86,8 @@ func New(cfg *config.OkEmuConfig) *ComputerType {
 func (c *ComputerType) Reset() {
 	c.cpu.Reset()
 	c.cycles = 0
+	c.vShift = 0
+	c.hShift = 0
 }
 
 func (c *ComputerType) Do() int {
@@ -160,18 +112,16 @@ func (c *ComputerType) GetPixel(x uint16, y uint16) color.RGBA {
 		if x > 255 {
 			return CWhite
 		}
+		y += uint16(c.vShift)
+		// x += uint16(c.hShift >> 3)
 		// Color 256x256 mode
-		addr = ((x & 0xf8) << 6) | y
-		var mask byte = 1 << (x & 0x07)
-		pix1 := c.vRAM.memory[addr]&(mask) != 0
-		pix2 := c.vRAM.memory[addr+0x100]&(mask) != 0
-		var cl byte = 0
-		if pix1 {
-			cl |= 1
+		addr = ((x & 0xf8) << 6) | (y & 0xff)
+		if c.vShift != 0 {
+			addr -= 8
 		}
-		if pix2 {
-			cl |= 2
-		}
+
+		var cl byte = (c.vRAM.memory[addr&0x3fff] >> (x & 0x07)) & 1
+		cl |= (c.vRAM.memory[(addr+0x100)&0x3fff] >> (x & 0x07)) & 1 << 1
 		if cl == 0 {
 			resColor = BgColorPalette[c.bgColor]
 		} else {
@@ -182,7 +132,8 @@ func (c *ComputerType) GetPixel(x uint16, y uint16) color.RGBA {
 			return CWhite
 		}
 		// Mono 512x256 mode
-		addr = ((x & 0xf8) << 5) | y
+		y += uint16(c.vShift)
+		addr = ((x & 0xf8) << 5) | (y & 0xff)
 		pix := c.vRAM.memory[addr]&(1<<x) != 0
 		if c.palette == 6 {
 			if !pix {

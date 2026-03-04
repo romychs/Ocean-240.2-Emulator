@@ -1,14 +1,16 @@
 package okean240
 
 /*
-	Timer config: [sc1,sc0][rl1,rl0][m2,m1,m0][bcd]
-	sc - timer, rl=01-LSB, 10-MSB, 11-LSB+MSB
-	mode 000 - int on fin,
+	Timer config byte: [sc1:0][rl1:0][m2:0][bcd]
+	sc1:0 - timer No
+    rl=01-LSB, 10-MSB, 11-LSB+MSB
+	mode 000 - intr on fin,
 		 001 - one shot,
 		 x10 - rate gen,
 		 x11 - sq wave
 */
 
+// Timer work modes
 const (
 	TimerModeIntOnFin = iota
 	TimerModeOneShot
@@ -16,21 +18,22 @@ const (
 	TimerModeSqWave
 )
 
+// Timer load counter modes
 const (
 	TimerRLMsbLsb = iota
-	TimerRLLsbLsb
+	TimerRLLsb
 	TimerRLMsb
 	TimerRLLsbMsb
 )
 
 type Timer8253Ch struct {
-	rl      byte
-	mode    byte
-	bcd     bool
-	load    uint16
-	counter uint16
-	fb      bool
-	start   bool
+	rl      byte   // load mode
+	mode    byte   // counter mode
+	bcd     bool   // decimal/BCD load mode
+	load    uint16 // value to count from
+	counter uint16 // timer counter
+	fb      bool   // first byte load flag
+	started bool   // true if timer started
 	fired   bool
 }
 type Timer8253 struct {
@@ -60,22 +63,22 @@ func NewTimer8253() *Timer8253 {
 
 func (t *Timer8253) Tick(chNo int) {
 	tmr := &t.channel[chNo]
-	if tmr.start {
+	if tmr.started {
 		tmr.counter--
 		if tmr.counter == 0 {
 			switch tmr.mode {
 			case TimerModeIntOnFin:
 				{
-					tmr.start = false
+					tmr.started = false
 					tmr.fired = true
 				}
 			case TimerModeOneShot:
-				tmr.start = false
+				tmr.started = false
 			case TimerModeRateGen:
-				tmr.start = false
+				tmr.started = false
 			case TimerModeSqWave:
 				{
-					tmr.start = true
+					tmr.started = true
 					tmr.counter = tmr.load
 					tmr.fired = true
 				}
@@ -97,13 +100,13 @@ func (t *Timer8253) Fired(chNo int) bool {
 }
 
 func (t *Timer8253) Start(chNo int) bool {
-	return t.channel[chNo].start
+	return t.channel[chNo].started
 }
 
 func (t *Timer8253) Configure(value byte) {
 	chNo := (value & 0xC0) >> 6
 	rl := value & 0x30 >> 4
-	t.channel[chNo].start = false
+	t.channel[chNo].started = false
 	t.channel[chNo].rl = rl
 	t.channel[chNo].mode = (value & 0x0E) >> 1
 	t.channel[chNo].fb = true
@@ -113,7 +116,8 @@ func (t *Timer8253) Configure(value byte) {
 
 func (t *Timer8253) Load(chNo byte, value byte) {
 	timer := &t.channel[chNo]
-	if timer.rl == 0 {
+	switch timer.rl {
+	case TimerRLMsbLsb:
 		// MSB+LSB
 		if timer.fb {
 			// MSB
@@ -122,17 +126,17 @@ func (t *Timer8253) Load(chNo byte, value byte) {
 		} else {
 			// LSB
 			timer.load |= uint16(value)
-			timer.start = true
+			timer.started = true
 		}
-	} else if timer.rl == 1 {
+	case TimerRLLsb:
 		// LSB Only
 		timer.load = (timer.load & 0xff00) | uint16(value)
-		timer.start = true
-	} else if timer.rl == 2 {
+		timer.started = true
+	case TimerRLMsb:
 		// MSB Only
 		timer.load = (timer.load & 0x00ff) | (uint16(value) << 8)
-		timer.start = true
-	} else {
+		timer.started = true
+	case TimerRLLsbMsb:
 		// LSB+MSB
 		if timer.fb {
 			// LSB
@@ -141,7 +145,7 @@ func (t *Timer8253) Load(chNo byte, value byte) {
 		} else {
 			// MSB
 			timer.load = (uint16(value) << 8) | (timer.load & 0x00ff)
-			timer.start = true
+			timer.started = true
 			timer.counter = timer.load
 		}
 	}
