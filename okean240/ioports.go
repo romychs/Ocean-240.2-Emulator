@@ -28,8 +28,15 @@ func (c *ComputerType) IORead(port uint16) byte {
 		return c.ioPorts[KBD_DD78PA]
 	case KBD_DD78PB:
 		return c.ioPorts[KBD_DD78PB]
+	case FDC_CMD:
+		return c.fdc.Status()
+	case FDC_DRQ:
+		return c.fdc.Drq()
 	case FLOPPY:
 		return c.fdc.GetFloppy()
+	case FDC_DATA:
+		return c.fdc.Data()
+
 	default:
 		log.Debugf("IORead from port: %x", port)
 	}
@@ -89,13 +96,14 @@ func (c *ComputerType) IOWrite(port uint16, val byte) {
 		c.dd72.Send(val)
 	case FDC_CMD:
 		c.fdc.SetCmd(val)
+	case FDC_DATA:
+		c.fdc.SetData(val)
 	case FDC_TRACK:
 		c.fdc.SetTrack(val)
 	case FDC_SECT:
 		c.fdc.SetSector(val)
 	case FLOPPY:
 		c.fdc.SetFloppy(val)
-
 	default:
 		//log.Debugf("OUT to Unknown port (%x), %x", bp, val)
 

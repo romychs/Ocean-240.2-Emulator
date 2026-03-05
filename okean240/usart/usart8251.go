@@ -1,4 +1,11 @@
-package okean240
+package usart
+
+/**
+Universal Serial Asynchronous Receiver/Transmitter
+i8051, MSM82C51, КР580ВВ51
+
+By Romych, 2025.03.04
+*/
 
 const I8251DSRFlag = 0x80
 const I8251SynDetFlag = 0x40
@@ -17,7 +24,7 @@ const (
 	Sio8251LoadCommand
 )
 
-type Sio8251 struct {
+type I8251 struct {
 	counter   uint64
 	mode      byte
 	initState byte
@@ -29,7 +36,7 @@ type Sio8251 struct {
 	txe       bool
 }
 
-type Sio8251Interface interface {
+type I8251Interface interface {
 	Tick()
 	Status() byte
 	Reset()
@@ -38,8 +45,8 @@ type Sio8251Interface interface {
 	Receive() byte
 }
 
-func NewSio8251() *Sio8251 {
-	return &Sio8251{
+func NewI8251() *I8251 {
+	return &I8251{
 		counter:   0,
 		mode:      0,
 		initState: 0,
@@ -50,12 +57,12 @@ func NewSio8251() *Sio8251 {
 	}
 }
 
-func (s *Sio8251) Tick() {
+func (s *I8251) Tick() {
 	s.counter++
 }
 
 // Status i8251 status [RST,RQ_RX,RST_ERR,PAUSE,RX_EN,RX_RDY,TX_RDY]
-func (s *Sio8251) Status() byte {
+func (s *I8251) Status() byte {
 	var status byte = 0
 	if len(s.bufferRx) > 0 {
 		status |= I8251RxReadyFlag
@@ -69,7 +76,7 @@ func (s *Sio8251) Status() byte {
 	return status
 }
 
-func (s *Sio8251) Reset() {
+func (s *I8251) Reset() {
 	s.counter = 0
 	s.mode = 0
 	s.initState = 0
@@ -79,7 +86,7 @@ func (s *Sio8251) Reset() {
 	s.txe = false
 }
 
-func (s *Sio8251) Command(value byte) {
+func (s *I8251) Command(value byte) {
 	switch s.initState {
 	case Sio8251Reset:
 		s.mode = value
@@ -119,13 +126,13 @@ func (s *Sio8251) Command(value byte) {
 
 }
 
-func (s *Sio8251) Send(value byte) {
+func (s *I8251) Send(value byte) {
 	if s.txe {
 		s.bufferTx = append(s.bufferTx, value)
 	}
 }
 
-func (s *Sio8251) Receive() byte {
+func (s *I8251) Receive() byte {
 	if s.rxe {
 		if len(s.bufferRx) > 0 {
 			res := s.bufferRx[0]

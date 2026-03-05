@@ -12,6 +12,8 @@ func (c *ComputerType) PutKey(key *fyne.KeyEvent) {
 		return
 	}
 
+	log.Debugf("PutKey keyName: %s", key.Name)
+
 	if len(c.kbdBuffer) < KbdBufferSize {
 
 		var code byte
@@ -24,6 +26,7 @@ func (c *ComputerType) PutKey(key *fyne.KeyEvent) {
 			code = RemapKeyShift[key.Name]
 		}
 		c.ioPorts[KBD_DD78PB] &= 0x1f
+
 		if code != 0 {
 			c.ioPorts[KBD_DD78PA] = code
 			c.ioPorts[PIC_DD75RS] |= Rst1KbdFlag
@@ -34,6 +37,7 @@ func (c *ComputerType) PutKey(key *fyne.KeyEvent) {
 			case "LeftControl", "RightControl":
 				c.ioPorts[KBD_DD78PB] |= 0x20
 			case "LeftShift", "RightShift":
+				log.Debug("Shift")
 				c.ioPorts[KBD_DD78PB] |= 0x40
 			default:
 				log.Debugf("Unhandled KeyName: %s  code: %X", key.Name, key.Physical.ScanCode)

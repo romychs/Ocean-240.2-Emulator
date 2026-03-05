@@ -3,6 +3,9 @@ package okean240
 import (
 	"image/color"
 	"okemu/config"
+	fdc2 "okemu/okean240/fdc"
+	"okemu/okean240/pit"
+	"okemu/okean240/usart"
 	"okemu/z80em"
 
 	"fyne.io/fyne/v2"
@@ -21,9 +24,9 @@ type ComputerType struct {
 	vRAM          *RamBlock
 	palette       byte
 	bgColor       byte
-	dd70          *Timer8253
-	dd72          *Sio8251
-	fdc           *FDCType
+	dd70          *pit.I8253
+	dd72          *usart.I8251
+	fdc           *fdc2.FloppyDriveController
 	kbdBuffer     []byte
 	vShift        byte
 	hShift        byte
@@ -76,9 +79,9 @@ func New(cfg *config.OkEmuConfig) *ComputerType {
 	c.vShift = 0
 	c.hShift = 0
 
-	c.dd70 = NewTimer8253()
-	c.dd72 = NewSio8251()
-	c.fdc = NewFDCType()
+	c.dd70 = pit.NewI8253()
+	c.dd72 = usart.NewI8251()
+	c.fdc = fdc2.NewFDCType()
 
 	return &c
 }
@@ -113,7 +116,7 @@ func (c *ComputerType) GetPixel(x uint16, y uint16) color.RGBA {
 			return CWhite
 		}
 		y += uint16(c.vShift)
-		// x += uint16(c.hShift >> 3)
+		x += uint16(c.hShift)
 		// Color 256x256 mode
 		addr = ((x & 0xf8) << 6) | (y & 0xff)
 		if c.vShift != 0 {

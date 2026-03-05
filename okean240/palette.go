@@ -7,12 +7,12 @@ var CLGreen = color.RGBA{R: 0x00, G: 0xff, B: 0, A: 0xff}
 var CGreen = color.RGBA{R: 0x12, G: 0x76, B: 0x22, A: 0xff}
 var CBlue = color.RGBA{R: 0x2A, G: 0x60, B: 0x99, A: 0xff}
 var CLBlue = color.RGBA{R: 0x72, G: 0x9F, B: 0xCF, A: 0xff}
-var CCrimson = color.RGBA{R: 0x80, G: 0x00, B: 0x80, A: 0xff}
+var CCrimson = color.RGBA{R: 0xbf, G: 0x00, B: 0xbf, A: 0xff}
 var CWhite = color.RGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}
 var CYellow = color.RGBA{R: 0xff, G: 0xff, B: 0x00, A: 0xff}
 var CBlack = color.RGBA{R: 0, G: 0, B: 0, A: 0xff}
 
-// R5 - Style Palette
+//// R5 - Style Palette
 //var ColorPalette = [8][4]color.RGBA{
 //	{CBlack, CRed, CGreen, CBlue},    // 000
 //	{CWhite, CRed, CGreen, CBlue},    // 001

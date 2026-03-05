@@ -1,7 +1,5 @@
 package okean240
 
-import "fyne.io/fyne/v2"
-
 /*
  * КР580ВВ55 DD79  USER PORT
  */
@@ -35,8 +33,8 @@ const FDC_SECT = 0x22
 // FDC_DATA FDC Data
 const FDC_DATA = 0x23
 
-// FDC_WAIT FDC Wait
-const FDC_WAIT = 0x24
+// FDC_DRQ Read DRQ state from FDC
+const FDC_DRQ = 0x24
 
 /*
  * Floppy Controller port
@@ -80,7 +78,7 @@ const TMR_DD70C3 = 0x62
 	 TMR_DD70CTR
 	    Timer config: [sc1,sc0][rl1,rl0][m2,m1,m0][bcd]
 		sc - timer, rl=01-LSB, 10-MSB, 11-LSB+MSB
-		mode 000 - intr on fin,
+		mode 000 - intRq on fin,
 		     001 - one shot,
 		     x10 - rate gen,
 		     x11-sq wave
@@ -99,7 +97,7 @@ const Rst1KbdFlag = 0x02 // Keyboard interrupt
 const Rst2SerFlag = 0x04 // Serial interface interrupt
 const RstЗLptFlag = 0x08 // Printer ready
 const Rst4TmrFlag = 0x10 // System timer
-const Rst5PwrFlag = 0x20 // Power intr
+const Rst5PwrFlag = 0x20 // Power intRq
 const Rst6UsrFlag = 0x40 // User device 1 interrupt
 const Rst7UsrFlag = 0x80 // User device 1 interrupt
 
@@ -155,166 +153,3 @@ const DD67PC = 0xE2
  * Set bit: [0][xxx][bbb][0|1]
  */
 const DD67CTR = 0xE3
-
-var RemapKey = map[fyne.KeyName]byte{
-	fyne.KeyEscape:       0x1B,
-	fyne.KeyReturn:       0x0A,
-	fyne.KeyTab:          0x09,
-	fyne.KeyBackspace:    0x08,
-	fyne.KeyInsert:       0x00,
-	fyne.KeyDelete:       0x08,
-	fyne.KeyRight:        0x18,
-	fyne.KeyLeft:         0x08,
-	fyne.KeyDown:         0x0A,
-	fyne.KeyUp:           0x19,
-	fyne.KeyPageUp:       0x00,
-	fyne.KeyPageDown:     0x00,
-	fyne.KeyHome:         0x0C,
-	fyne.KeyEnd:          0x1A,
-	fyne.KeyF1:           0x00,
-	fyne.KeyF2:           0x00,
-	fyne.KeyF3:           0x00,
-	fyne.KeyF4:           0x00,
-	fyne.KeyF5:           0x00,
-	fyne.KeyF6:           0x00,
-	fyne.KeyF7:           0x00,
-	fyne.KeyF8:           0x00,
-	fyne.KeyF9:           0x00,
-	fyne.KeyF10:          0x00,
-	fyne.KeyF11:          0x00,
-	fyne.KeyF12:          0x00,
-	fyne.KeyEnter:        0x0D,
-	fyne.Key0:            0x30,
-	fyne.Key1:            0x31,
-	fyne.Key2:            0x32,
-	fyne.Key3:            0x33,
-	fyne.Key4:            0x34,
-	fyne.Key5:            0x35,
-	fyne.Key6:            0x36,
-	fyne.Key7:            0x37,
-	fyne.Key8:            0x38,
-	fyne.Key9:            0x39,
-	fyne.KeyA:            0x61,
-	fyne.KeyB:            0x62,
-	fyne.KeyC:            0x63,
-	fyne.KeyD:            0x64,
-	fyne.KeyE:            0x65,
-	fyne.KeyF:            0x66,
-	fyne.KeyG:            0x67,
-	fyne.KeyH:            0x68,
-	fyne.KeyI:            0x69,
-	fyne.KeyJ:            0x6a,
-	fyne.KeyK:            0x6b,
-	fyne.KeyL:            0x6c,
-	fyne.KeyM:            0x6d,
-	fyne.KeyN:            0x6e,
-	fyne.KeyO:            0x6f,
-	fyne.KeyP:            0x70,
-	fyne.KeyQ:            0x71,
-	fyne.KeyR:            0x72,
-	fyne.KeyS:            0x73,
-	fyne.KeyT:            0x74,
-	fyne.KeyU:            0x75,
-	fyne.KeyV:            0x76,
-	fyne.KeyW:            0x77,
-	fyne.KeyX:            0x78,
-	fyne.KeyY:            0x79,
-	fyne.KeyZ:            0x7A,
-	fyne.KeySpace:        0x20,
-	fyne.KeyApostrophe:   0x27,
-	fyne.KeyComma:        0x2c,
-	fyne.KeyMinus:        0x2d,
-	fyne.KeyPeriod:       0x2E,
-	fyne.KeySlash:        0x2F,
-	fyne.KeyBackslash:    0x5C,
-	fyne.KeyLeftBracket:  0x5B,
-	fyne.KeyRightBracket: 0x5D,
-	fyne.KeySemicolon:    0x3B,
-	fyne.KeyEqual:        0x3D,
-	fyne.KeyAsterisk:     0x2A,
-	fyne.KeyPlus:         0x2B,
-	fyne.KeyBackTick:     0x60,
-	fyne.KeyUnknown:      0x00,
-}
-
-var RemapKeyShift = map[fyne.KeyName]byte{
-	fyne.KeyEscape:    0x1B,
-	fyne.KeyReturn:    0x0A,
-	fyne.KeyTab:       0x09,
-	fyne.KeyBackspace: 0x08,
-	fyne.KeyInsert:    0x00,
-	fyne.KeyDelete:    0x08,
-	fyne.KeyRight:     0x18,
-	fyne.KeyLeft:      0x08,
-	fyne.KeyDown:      0x0A,
-	fyne.KeyUp:        0x19,
-	fyne.KeyPageUp:    0x00,
-	fyne.KeyPageDown:  0x00,
-	fyne.KeyHome:      0x0C,
-	fyne.KeyEnd:       0x1A,
-	fyne.KeyF1:        0x00,
-	fyne.KeyF2:        0x00,
-	fyne.KeyF3:        0x00,
-	fyne.KeyF4:        0x00,
-	fyne.KeyF5:        0x00,
-	fyne.KeyF6:        0x00,
-	fyne.KeyF7:        0x00,
-	fyne.KeyF8:        0x00,
-	fyne.KeyF9:        0x00,
-	fyne.KeyF10:       0x00,
-	fyne.KeyF11:       0x00,
-	fyne.KeyF12:       0x00,
-	fyne.KeyEnter:     0x0D,
-
-	fyne.Key0:            0x29,
-	fyne.Key1:            0x21,
-	fyne.Key2:            0x40,
-	fyne.Key3:            0x23,
-	fyne.Key4:            0x24,
-	fyne.Key5:            0x25,
-	fyne.Key6:            0x5E,
-	fyne.Key7:            0x26,
-	fyne.Key8:            0x2A,
-	fyne.Key9:            0x28,
-	fyne.KeyA:            0x41,
-	fyne.KeyB:            0x42,
-	fyne.KeyC:            0x43,
-	fyne.KeyD:            0x44,
-	fyne.KeyE:            0x45,
-	fyne.KeyF:            0x46,
-	fyne.KeyG:            0x47,
-	fyne.KeyH:            0x48,
-	fyne.KeyI:            0x49,
-	fyne.KeyJ:            0x4a,
-	fyne.KeyK:            0x4b,
-	fyne.KeyL:            0x4c,
-	fyne.KeyM:            0x4d,
-	fyne.KeyN:            0x4e,
-	fyne.KeyO:            0x4f,
-	fyne.KeyP:            0x50,
-	fyne.KeyQ:            0x51,
-	fyne.KeyR:            0x52,
-	fyne.KeyS:            0x53,
-	fyne.KeyT:            0x54,
-	fyne.KeyU:            0x55,
-	fyne.KeyV:            0x56,
-	fyne.KeyW:            0x57,
-	fyne.KeyX:            0x58,
-	fyne.KeyY:            0x59,
-	fyne.KeyZ:            0x5A,
-	fyne.KeySpace:        0x20,
-	fyne.KeyApostrophe:   0x22,
-	fyne.KeyComma:        0x3C,
-	fyne.KeyMinus:        0x5F,
-	fyne.KeyPeriod:       0x3E,
-	fyne.KeySlash:        0x3F,
-	fyne.KeyBackslash:    0x7C,
-	fyne.KeyLeftBracket:  0x7B,
-	fyne.KeyRightBracket: 0x7D,
-	fyne.KeySemicolon:    0x3A,
-	fyne.KeyEqual:        0x2B,
-	fyne.KeyAsterisk:     0x7E,
-	fyne.KeyPlus:         0x7E,
-	fyne.KeyBackTick:     0x60,
-	fyne.KeyUnknown:      0x00,
-}
