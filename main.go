@@ -23,7 +23,7 @@ var BuildTime = "2026-03-01"
 //go:embed hex/format.hex
 var serialBytes []byte
 
-//go:embed bin/TYPE.COM
+//go:embed bin/MB.COM
 var ramBytes []byte
 
 var needReset = false
@@ -72,7 +72,13 @@ func mainWindow(computer *okean240.ComputerType, emuConfig *config.OkEmuConfig) 
 
 	raster := canvas.NewRasterWithPixels(
 		func(x, y, w, h int) color.Color {
-			return computer.GetPixel(uint16(x/2), uint16(y/2))
+			var xx uint16
+			if computer.ScreenWidth() == 512 {
+				xx = uint16(x)
+			} else {
+				xx = uint16(x) / 2
+			}
+			return computer.GetPixel(xx, uint16(y/2))
 		})
 	raster.Resize(fyne.NewSize(512, 512))
 	raster.SetMinSize(fyne.NewSize(512, 512))
@@ -130,7 +136,7 @@ func emulator(computer *okean240.ComputerType, raster *canvas.Raster, label *wid
 	var freq uint64 = 0
 
 	nextSecond := time.Now().Add(time.Second).UnixMicro()
-	curScrWidth := 256
+	//curScrWidth := 256
 	for range ticker.C {
 		if needReset {
 			computer.Reset(emuConfig)
@@ -159,12 +165,12 @@ func emulator(computer *okean240.ComputerType, raster *canvas.Raster, label *wid
 			// redraw screen here
 			fyne.Do(func() {
 				// check for screen mode changed
-				if computer.ScreenWidth() != curScrWidth {
-					curScrWidth = computer.ScreenWidth()
-					newSize := fyne.NewSize(float32(curScrWidth*2), float32(computer.ScreenHeight()*2))
-					raster.SetMinSize(newSize)
-					raster.Resize(newSize)
-				}
+				//if computer.ScreenWidth() != curScrWidth {
+				//	curScrWidth = computer.ScreenWidth()
+				//	newSize := fyne.NewSize(float32(curScrWidth*2), float32(computer.ScreenHeight()*2))
+				//	raster.SetMinSize(newSize)
+				//	raster.Resize(newSize)
+				//}
 				// status for every 25 frames
 				if frame%50 == 0 {
 					label.SetText(fmt.Sprintf("Screen size: %dx%d  F: %d", computer.ScreenWidth(), computer.ScreenHeight(), freq))

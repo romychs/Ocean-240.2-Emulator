@@ -14,13 +14,13 @@ func (c *ComputerType) IORead(port uint16) byte {
 	switch port & 0x00ff {
 	case PIC_DD75A:
 		// PIO xx59, get IRR register
-		return c.dd75.IRR()
+		return c.pic.IRR()
 	case UART_DD72RR:
 		// USART VV51 CMD
-		return c.dd72.Status()
+		return c.usart.Status()
 	case UART_DD72RD:
 		// USART VV51 Data
-		return c.dd72.Receive()
+		return c.usart.Receive()
 	case KBD_DD78PA:
 		// Keyboard data
 		return c.ioPorts[KBD_DD78PA]
@@ -79,23 +79,23 @@ func (c *ComputerType) IOWrite(port uint16, val byte) {
 		c.hShift = val
 	case TMR_DD70CTR:
 		// Timer VI63 config register
-		c.dd70.Configure(val)
+		c.pit.Configure(val)
 	case TMR_DD70C1:
 		// Timer VI63 counter0 register
-		c.dd70.Load(0, val)
+		c.pit.Load(0, val)
 	case TMR_DD70C2:
 		// Timer VI63 counter1 register
-		c.dd70.Load(1, val)
+		c.pit.Load(1, val)
 	case TMR_DD70C3:
 		// Timer VI63 counter2 register
-		c.dd70.Load(2, val)
+		c.pit.Load(2, val)
 
 	case UART_DD72RR:
 		// USART VV51 CMD
-		c.dd72.Command(val)
+		c.usart.Command(val)
 	case UART_DD72RD:
 		// USART VV51 Data
-		c.dd72.Send(val)
+		c.usart.Send(val)
 	case FDC_CMD:
 		c.fdc.SetCmd(val)
 	case FDC_DATA:

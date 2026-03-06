@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"image/color"
 	"okemu/config"
-	fdc2 "okemu/okean240/fdc"
+	"okemu/okean240/fdc"
 	"okemu/okean240/pic"
 	"okemu/okean240/pit"
 	"okemu/okean240/usart"
@@ -17,7 +17,7 @@ import (
 )
 
 type ComputerType struct {
-	cpu           z80em.Z80Type
+	cpu           *z80em.Z80Type
 	memory        Memory
 	ioPorts       [256]byte
 	cycles        uint64
@@ -28,10 +28,10 @@ type ComputerType struct {
 	vRAM          *RamBlock
 	palette       byte
 	bgColor       byte
-	dd70          *pit.I8253
-	dd72          *usart.I8251
-	dd75          *pic.I8259
-	fdc           *fdc2.FloppyDriveController
+	pit           *pit.I8253
+	usart         *usart.I8251
+	pic           *pic.I8259
+	fdc           *fdc.FloppyDriveController
 	kbdBuffer     []byte
 	vShift        byte
 	hShift        byte
@@ -41,7 +41,6 @@ const VRAMBlock0 = 3
 const VRAMBlock1 = 7
 const VidVsuBit = 0x80
 const VidColorBit = 0x40
-const KbdBufferSize = 3
 
 type ComputerInterface interface {
 	Run()
@@ -75,7 +74,7 @@ func New(cfg *config.OkEmuConfig) *ComputerType {
 	c.memory = Memory{}
 	c.memory.Init(cfg.MonitorFile, cfg.CPMFile)
 
-	c.cpu = *z80em.New(&c)
+	c.cpu = z80em.New(&c)
 
 	c.cycles = 0
 	c.dd17EnableOut = false
@@ -88,10 +87,10 @@ func New(cfg *config.OkEmuConfig) *ComputerType {
 	c.vShift = 0
 	c.hShift = 0
 
-	c.dd70 = pit.NewI8253()
-	c.dd72 = usart.NewI8251()
-	c.dd75 = pic.NewI8259()
-	c.fdc = fdc2.NewFDCType()
+	c.pit = pit.New()
+	c.usart = usart.New()
+	c.pic = pic.New()
+	c.fdc = fdc.New()
 
 	return &c
 }
@@ -120,9 +119,9 @@ func (c *ComputerType) Do() int {
 	//}
 	ticks := uint64(c.cpu.RunInstruction())
 	c.cycles += ticks
-	//if c.cpu.PC == 0x2C2 {
-	//	log.Debugf("%4X: H:%X L:%X", c.cpu.PC, c.cpu.H, c.cpu.L)
-	//}
+	if c.cpu.PC == 0xFF26 {
+		log.Debugf("%4X: H:%X L:%X A:%X B: %X C: %X D: %X E: %X", c.cpu.PC, c.cpu.H, c.cpu.L, c.cpu.A, c.cpu.B, c.cpu.C, c.cpu.D, c.cpu.E)
+	}
 	return int(ticks)
 }
 
@@ -140,16 +139,16 @@ func (c *ComputerType) GetPixel(x uint16, y uint16) color.RGBA {
 		}
 
 		y += uint16(c.vShift) & 0x00ff
-		x += uint16(c.hShift) & 0x00ff
+		x += uint16(c.hShift-7) & 0x00ff
 
 		// Color 256x256 mode
-		addr = ((x & 0xf8) << 6) | (y & 0xff)
-		if c.vShift != 0 {
-			addr -= 8
-		}
+		addr = ((x & 0xf8) << 6) | y
+		//if c.vShift != 0 {
+		//	addr -= 8
+		//}
 
 		cl := (c.vRAM.memory[addr&0x3fff] >> (x & 0x07)) & 1
-		cl |= (c.vRAM.memory[(addr+0x100)&0x3fff] >> (x & 0x07)) & 1 << 1
+		cl |= ((c.vRAM.memory[(addr+0x100)&0x3fff] >> (x & 0x07)) & 1) << 1
 		if cl == 0 {
 			resColor = BgColorPalette[c.bgColor]
 		} else {
@@ -159,18 +158,22 @@ func (c *ComputerType) GetPixel(x uint16, y uint16) color.RGBA {
 		if x > 511 {
 			return CWhite
 		}
+
+		// Shifts
+		y += uint16(c.vShift) & 0x00ff
+		x += uint16(c.hShift-7) & 0x001ff
+
 		// Mono 512x256 mode
-		y += uint16(c.vShift)
-		addr = ((x & 0xf8) << 5) | (y & 0xff)
-		pix := c.vRAM.memory[addr]&(1<<x) != 0
+		addr = ((x & 0x1f8) << 5) | y
+		pix := c.vRAM.memory[addr] >> (x & 0x07) & 1
 		if c.palette == 6 {
-			if !pix {
+			if pix == 0 {
 				resColor = CBlack
 			} else {
 				resColor = CLGreen
 			}
 		} else {
-			if !pix {
+			if pix == 0 {
 				resColor = BgColorPalette[c.bgColor]
 			} else {
 				resColor = MonoPalette[c.bgColor]
@@ -194,17 +197,17 @@ func (c *ComputerType) Cycles() uint64 {
 
 func (c *ComputerType) TimerClk() {
 	// DD70 KR580VI53 CLK0, CKL1 @ 1.5MHz
-	c.dd70.Tick(0)
-	c.dd70.Tick(1)
+	c.pit.Tick(0)
+	c.pit.Tick(1)
 
 	// IRQ from timer
-	if c.dd70.Fired(0) {
-		c.dd75.SetIRQ(RstTimerNo)
+	if c.pit.Fired(0) {
+		c.pic.SetIRQ(RstTimerNo)
 		//c.ioPorts[PIC_DD75RS] |= Rst4Mask
 	}
 	// clock for SIO KR580VV51
-	if c.dd70.Fired(1) {
-		c.dd72.Tick()
+	if c.pit.Fired(1) {
+		c.usart.Tick()
 	}
 }
 
@@ -217,7 +220,7 @@ func (c *ComputerType) SaveFloppy() {
 }
 
 func (c *ComputerType) SetSerialBytes(bytes []byte) {
-	c.dd72.SetRxBytes(bytes)
+	c.usart.SetRxBytes(bytes)
 }
 
 func (c *ComputerType) SetRamBytes(bytes []byte) {

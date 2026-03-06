@@ -4,7 +4,7 @@ import "fyne.io/fyne/v2"
 
 var RemapCmdKey = map[fyne.KeyName]byte{
 	fyne.KeyEscape:    0x1B,
-	fyne.KeyReturn:    0x0A,
+	fyne.KeyReturn:    0x0D,
 	fyne.KeyTab:       0x09,
 	fyne.KeyBackspace: 0x08,
 	fyne.KeyInsert:    0x00,
@@ -29,7 +29,7 @@ var RemapCmdKey = map[fyne.KeyName]byte{
 	fyne.KeyF10:       0x00,
 	fyne.KeyF11:       0x00,
 	fyne.KeyF12:       0x00,
-	fyne.KeyEnter:     0x0D,
+	fyne.KeyEnter:     0x0A,
 	fyne.KeyUnknown:   0x00,
 }
 

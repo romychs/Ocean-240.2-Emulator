@@ -47,7 +47,7 @@ type I8253Interface interface {
 	Start(chNo int) bool
 }
 
-func NewI8253() *I8253 {
+func New() *I8253 {
 	return &I8253{
 		//chNo: 0,
 		channel: [3]Timer8253Ch{

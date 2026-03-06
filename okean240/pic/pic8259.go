@@ -47,7 +47,7 @@ func (c *I8259) SetIRQ(irq byte) {
 	}
 }
 
-func NewI8259() *I8259 {
+func New() *I8259 {
 	return &I8259{
 		irr: 0,
 	}

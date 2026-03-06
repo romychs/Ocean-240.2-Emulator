@@ -47,7 +47,7 @@ type I8251Interface interface {
 	Receive() byte
 }
 
-func NewI8251() *I8251 {
+func New() *I8251 {
 	return &I8251{
 		counter:   0,
 		mode:      0,

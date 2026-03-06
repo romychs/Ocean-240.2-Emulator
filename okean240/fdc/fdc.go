@@ -321,7 +321,7 @@ func (f *FloppyDriveController) SaveFloppy() {
 
 }
 
-func NewFDCType() *FloppyDriveController {
+func New() *FloppyDriveController {
 	sec := [SizeInSectors]SectorType{}
 	for i := 0; i < SizeInSectors; i++ {
 		sec[i] = make([]byte, SectorSize)
