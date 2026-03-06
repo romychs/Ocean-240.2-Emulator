@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"image/color"
 	"okemu/config"
@@ -19,6 +20,14 @@ import (
 var Version = "v1.0.0"
 var BuildTime = "2026-03-01"
 
+//go:embed hex/format.hex
+var serialBytes []byte
+
+//go:embed bin/TYPE.COM
+var ramBytes []byte
+
+var needReset = false
+
 func main() {
 
 	fmt.Printf("Starting Ocean-240.2 emulator %s build at %s\n", Version, BuildTime)
@@ -32,14 +41,29 @@ func main() {
 	conf := config.GetConfig()
 
 	// Reconfigure logging by config values
-	//logger.ReconfigureLogging(conf)
-	computer := okean240.New(conf)
+	// logger.ReconfigureLogging(conf)
 
+	computer := okean240.New(conf)
+	computer.SetSerialBytes(serialBytes)
+
+	w, raster, label := mainWindow(computer, conf)
+
+	go emulator(computer, raster, label, conf)
+
+	(*w).ShowAndRun()
+}
+
+func mainWindow(computer *okean240.ComputerType, emuConfig *config.OkEmuConfig) (*fyne.Window, *canvas.Raster, *widget.Label) {
 	emulatorApp := app.New()
 	w := emulatorApp.NewWindow("Океан 240.2")
 	w.Canvas().SetOnTypedKey(
 		func(key *fyne.KeyEvent) {
 			computer.PutKey(key)
+		})
+
+	w.Canvas().SetOnTypedRune(
+		func(key rune) {
+			computer.PutRune(key)
 		})
 
 	addShortcuts(w.Canvas(), computer)
@@ -61,9 +85,22 @@ func main() {
 		widget.NewButton("Ctrl+C", func() {
 			computer.PutCtrlKey(0x03)
 		}),
+		widget.NewButton("Load Floppy", func() {
+			computer.LoadFloppy()
+		}),
+		widget.NewButton("Save Floppy", func() {
+			computer.SaveFloppy()
+		}),
+		widget.NewButton("RUN", func() {
+			computer.SetRamBytes(ramBytes)
+		}),
+		widget.NewButton("DUMP", func() {
+			computer.Dump(0x399, 15000)
+		}),
 		widget.NewSeparator(),
 		widget.NewButton("Reset", func() {
-			computer.Reset()
+			needReset = true
+			//computer.Reset(conf)
 		}),
 		widget.NewSeparator(),
 		widget.NewButton("Закрыть", func() {
@@ -78,12 +115,10 @@ func main() {
 
 	w.SetContent(vBox)
 
-	go emulator(computer, raster, label)
-
-	w.ShowAndRun()
+	return &w, raster, label
 }
 
-func emulator(computer *okean240.ComputerType, raster *canvas.Raster, label *widget.Label) {
+func emulator(computer *okean240.ComputerType, raster *canvas.Raster, label *widget.Label, emuConfig *config.OkEmuConfig) {
 	ticker := time.NewTicker(133 * time.Nanosecond)
 	var ticks = 0
 	var ticksCPU = 3
@@ -97,6 +132,10 @@ func emulator(computer *okean240.ComputerType, raster *canvas.Raster, label *wid
 	nextSecond := time.Now().Add(time.Second).UnixMicro()
 	curScrWidth := 256
 	for range ticker.C {
+		if needReset {
+			computer.Reset(emuConfig)
+			needReset = false
+		}
 		ticks++
 		if ticks%5 == 0 {
 			// 1.5 MHz

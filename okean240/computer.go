@@ -1,12 +1,16 @@
 package okean240
 
 import (
+	_ "embed"
+	"encoding/binary"
 	"image/color"
 	"okemu/config"
 	fdc2 "okemu/okean240/fdc"
+	"okemu/okean240/pic"
 	"okemu/okean240/pit"
 	"okemu/okean240/usart"
 	"okemu/z80em"
+	"os"
 
 	"fyne.io/fyne/v2"
 	log "github.com/sirupsen/logrus"
@@ -26,6 +30,7 @@ type ComputerType struct {
 	bgColor       byte
 	dd70          *pit.I8253
 	dd72          *usart.I8251
+	dd75          *pic.I8259
 	fdc           *fdc2.FloppyDriveController
 	kbdBuffer     []byte
 	vShift        byte
@@ -45,7 +50,11 @@ type ComputerInterface interface {
 	Do() uint64
 	TimerClk()
 	PutKey(key *fyne.KeyEvent)
+	PutRune(key rune)
 	PutCtrlKey(shortcut fyne.Shortcut)
+	SaveFloppy()
+	LoadFloppy()
+	Dump(start uint16, length uint16)
 }
 
 func (c *ComputerType) M1MemRead(addr uint16) byte {
@@ -81,25 +90,39 @@ func New(cfg *config.OkEmuConfig) *ComputerType {
 
 	c.dd70 = pit.NewI8253()
 	c.dd72 = usart.NewI8251()
+	c.dd75 = pic.NewI8259()
 	c.fdc = fdc2.NewFDCType()
 
 	return &c
 }
 
-func (c *ComputerType) Reset() {
+func (c *ComputerType) Reset(cfg *config.OkEmuConfig) {
 	c.cpu.Reset()
 	c.cycles = 0
 	c.vShift = 0
 	c.hShift = 0
+
+	c.memory = Memory{}
+	c.memory.Init(cfg.MonitorFile, cfg.CPMFile)
+
+	c.cycles = 0
+	c.dd17EnableOut = false
+	c.screenWidth = 512
+	c.screenHeight = 256
+	c.vRAM = c.memory.allMemory[3]
+
 }
 
 func (c *ComputerType) Do() int {
-	s := c.cpu.GetState()
-	if s.PC == 0xe0db {
-		log.Debugf("breakpoint")
-	}
+	//s := c.cpu.GetState()
+	//if s.PC == 0xe0db {
+	//	log.Debugf("breakpoint")
+	//}
 	ticks := uint64(c.cpu.RunInstruction())
 	c.cycles += ticks
+	//if c.cpu.PC == 0x2C2 {
+	//	log.Debugf("%4X: H:%X L:%X", c.cpu.PC, c.cpu.H, c.cpu.L)
+	//}
 	return int(ticks)
 }
 
@@ -115,15 +138,17 @@ func (c *ComputerType) GetPixel(x uint16, y uint16) color.RGBA {
 		if x > 255 {
 			return CWhite
 		}
-		y += uint16(c.vShift)
-		x += uint16(c.hShift)
+
+		y += uint16(c.vShift) & 0x00ff
+		x += uint16(c.hShift) & 0x00ff
+
 		// Color 256x256 mode
 		addr = ((x & 0xf8) << 6) | (y & 0xff)
 		if c.vShift != 0 {
 			addr -= 8
 		}
 
-		var cl byte = (c.vRAM.memory[addr&0x3fff] >> (x & 0x07)) & 1
+		cl := (c.vRAM.memory[addr&0x3fff] >> (x & 0x07)) & 1
 		cl |= (c.vRAM.memory[(addr+0x100)&0x3fff] >> (x & 0x07)) & 1 << 1
 		if cl == 0 {
 			resColor = BgColorPalette[c.bgColor]
@@ -174,10 +199,61 @@ func (c *ComputerType) TimerClk() {
 
 	// IRQ from timer
 	if c.dd70.Fired(0) {
-		c.ioPorts[PIC_DD75RS] |= Rst4TmrFlag
+		c.dd75.SetIRQ(RstTimerNo)
+		//c.ioPorts[PIC_DD75RS] |= Rst4Mask
 	}
 	// clock for SIO KR580VV51
 	if c.dd70.Fired(1) {
 		c.dd72.Tick()
+	}
+}
+
+func (c *ComputerType) LoadFloppy() {
+	c.fdc.LoadFloppy()
+}
+
+func (c *ComputerType) SaveFloppy() {
+	c.fdc.SaveFloppy()
+}
+
+func (c *ComputerType) SetSerialBytes(bytes []byte) {
+	c.dd72.SetRxBytes(bytes)
+}
+
+func (c *ComputerType) SetRamBytes(bytes []byte) {
+	addr := 0x100
+	for i := 0; i < len(bytes); i++ {
+		c.memory.MemWrite(uint16(addr), bytes[i])
+		addr++
+	}
+	pages := len(bytes) / 256
+	if len(bytes)%256 != 0 {
+		pages++
+	}
+	log.Debugf("Loaded bytes: %d; blocks: %d", len(bytes), pages)
+	//c.cpu.SP = 0x100
+	//c.cpu.PC = 0x100
+}
+
+func (c *ComputerType) Dump(start uint16, length uint16) {
+	file, err := os.Create("dump.dat")
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			log.Error(err)
+		}
+	}(file)
+
+	var buffer []byte
+	for addr := 0; addr < 65535; addr++ {
+		buffer = append(buffer, c.memory.MemRead(uint16(addr)))
+	}
+	err = binary.Write(file, binary.LittleEndian, buffer)
+	if err != nil {
+		log.Error("Save memory dump failed:", err)
 	}
 }

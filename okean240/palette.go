@@ -38,7 +38,7 @@ var ColorPalette = [8][4]color.RGBA{
 
 // BgColorPalette Background color palette
 var BgColorPalette = [8]color.RGBA{
-	CBlack, CBlue, CGreen, CLBlue, CRed, CCrimson, CYellow, CWhite,
+	CBlack, CBlue, CGreen, CLBlue, CRed, CCrimson /*CYellow*/, CBlack, CWhite,
 }
 
 //var MonoPalette = [8]color.RGBA{

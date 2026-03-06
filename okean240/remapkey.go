@@ -2,6 +2,37 @@ package okean240
 
 import "fyne.io/fyne/v2"
 
+var RemapCmdKey = map[fyne.KeyName]byte{
+	fyne.KeyEscape:    0x1B,
+	fyne.KeyReturn:    0x0A,
+	fyne.KeyTab:       0x09,
+	fyne.KeyBackspace: 0x08,
+	fyne.KeyInsert:    0x00,
+	fyne.KeyDelete:    0x08,
+	fyne.KeyRight:     0x18,
+	fyne.KeyLeft:      0x08,
+	fyne.KeyDown:      0x0A,
+	fyne.KeyUp:        0x19,
+	fyne.KeyPageUp:    0x00,
+	fyne.KeyPageDown:  0x00,
+	fyne.KeyHome:      0x0C,
+	fyne.KeyEnd:       0x1A,
+	fyne.KeyF1:        0x00,
+	fyne.KeyF2:        0x00,
+	fyne.KeyF3:        0x00,
+	fyne.KeyF4:        0x00,
+	fyne.KeyF5:        0x00,
+	fyne.KeyF6:        0x00,
+	fyne.KeyF7:        0x00,
+	fyne.KeyF8:        0x00,
+	fyne.KeyF9:        0x00,
+	fyne.KeyF10:       0x00,
+	fyne.KeyF11:       0x00,
+	fyne.KeyF12:       0x00,
+	fyne.KeyEnter:     0x0D,
+	fyne.KeyUnknown:   0x00,
+}
+
 var RemapKey = map[fyne.KeyName]byte{
 	fyne.KeyEscape:       0x1B,
 	fyne.KeyReturn:       0x0A,
@@ -162,5 +193,4 @@ var RemapKeyShift = map[fyne.KeyName]byte{
 	fyne.KeyAsterisk:     0x7E,
 	fyne.KeyPlus:         0x7E,
 	fyne.KeyBackTick:     0x60,
-	fyne.KeyUnknown:      0x00,
 }

@@ -2,49 +2,25 @@ package okean240
 
 import (
 	"fyne.io/fyne/v2"
-	log "github.com/sirupsen/logrus"
 )
 
 func (c *ComputerType) PutKey(key *fyne.KeyEvent) {
 
-	if key.Name == fyne.KeyUnknown {
-		log.Debugf("Unknown key scancode: %X", key.Physical.ScanCode)
-		return
+	code := RemapCmdKey[key.Name]
+	if code > 0 {
+		//log.Debugf("PutKey keyName: %s", key.Name)
+		c.ioPorts[KBD_DD78PA] = code
+		c.dd75.SetIRQ(RstKbdNo)
 	}
 
-	log.Debugf("PutKey keyName: %s", key.Name)
+}
 
-	if len(c.kbdBuffer) < KbdBufferSize {
+func (c *ComputerType) PutRune(key rune) {
 
-		var code byte
+	//log.Debugf("Put Rune: %c  Lo: %x, Hi: %x", key, key&0xff, key>>8)
 
-		if (c.ioPorts[KBD_DD78PB] & 0x40) == 0 {
-			// No shift
-			code = RemapKey[key.Name]
-		} else {
-			// Shift
-			code = RemapKeyShift[key.Name]
-		}
-		c.ioPorts[KBD_DD78PB] &= 0x1f
-
-		if code != 0 {
-			c.ioPorts[KBD_DD78PA] = code
-			c.ioPorts[PIC_DD75RS] |= Rst1KbdFlag
-		} else {
-			switch key.Name {
-			case "LeftAlt", "RightAlt":
-				c.ioPorts[KBD_DD78PB] |= 0x80
-			case "LeftControl", "RightControl":
-				c.ioPorts[KBD_DD78PB] |= 0x20
-			case "LeftShift", "RightShift":
-				log.Debug("Shift")
-				c.ioPorts[KBD_DD78PB] |= 0x40
-			default:
-				log.Debugf("Unhandled KeyName: %s  code: %X", key.Name, key.Physical.ScanCode)
-			}
-		}
-	}
-
+	c.ioPorts[KBD_DD78PA] = byte(key & 0xff)
+	c.dd75.SetIRQ(RstKbdNo)
 }
 
 /*
@@ -62,6 +38,7 @@ func (c *ComputerType) PutKey(key *fyne.KeyEvent) {
 
 func (c *ComputerType) PutCtrlKey(key byte) {
 	c.ioPorts[KBD_DD78PA] = key
-	c.ioPorts[PIC_DD75RS] |= Rst1KbdFlag
+	c.dd75.SetIRQ(RstKbdNo)
+	//c.ioPorts[PIC_DD75RS] |= Rst1Mask
 	c.ioPorts[KBD_DD78PB] &= 0x1f | 0x20
 }

@@ -1,5 +1,7 @@
 package usart
 
+import log "github.com/sirupsen/logrus"
+
 /**
 Universal Serial Asynchronous Receiver/Transmitter
 i8051, MSM82C51, КР580ВВ51
@@ -133,12 +135,19 @@ func (s *I8251) Send(value byte) {
 }
 
 func (s *I8251) Receive() byte {
+
 	if s.rxe {
 		if len(s.bufferRx) > 0 {
 			res := s.bufferRx[0]
 			s.bufferRx = s.bufferRx[1:]
+			log.Debugf("ReceiveByte: %x", res)
 			return res
 		}
 	}
+	log.Debugf("ReceiveByte: empty buffer")
 	return 0
+}
+
+func (s *I8251) SetRxBytes(bytes []byte) {
+	s.bufferRx = append(s.bufferRx, bytes...)
 }

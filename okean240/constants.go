@@ -89,20 +89,23 @@ const TMR_DD70CTR = 0x63
  * Programmable Interrupt controller PIC  KR580VV59
  */
 
-// PIC_DD75RS RS Port
-const PIC_DD75RS = 0x80
+const RstKbdNo = 1
+const RstTimerNo = 4
 
-const Rst0SysFlag = 0x01 // System interrupt
-const Rst1KbdFlag = 0x02 // Keyboard interrupt
-const Rst2SerFlag = 0x04 // Serial interface interrupt
-const RstЗLptFlag = 0x08 // Printer ready
-const Rst4TmrFlag = 0x10 // System timer
-const Rst5PwrFlag = 0x20 // Power intRq
-const Rst6UsrFlag = 0x40 // User device 1 interrupt
-const Rst7UsrFlag = 0x80 // User device 1 interrupt
+const Rst0Mask = 0x01 // System interrupt
+const Rst1Mask = 0x02 // Keyboard interrupt
+const Rst2Mask = 0x04 // Serial interface interrupt
+const RstЗMask = 0x08 // Printer ready
+const Rst4Mask = 0x10
+const Rst5Mask = 0x20 // Power intRq
+const Rst6Mask = 0x40 // User device 1 interrupt
+const Rst7Mask = 0x80 // User device 1 interrupt
 
-// PIC_DD75RM RM Port
-const PIC_DD75RM = 0x81
+// PIC_DD75A Port A (a0=0)
+const PIC_DD75A = 0x80
+
+// PIC_DD75B Port B (a0=1)
+const PIC_DD75B = 0x81
 
 /*
  * КР580ВВ51 DD72

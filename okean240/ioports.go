@@ -12,16 +12,14 @@ import log "github.com/sirupsen/logrus"
 
 func (c *ComputerType) IORead(port uint16) byte {
 	switch port & 0x00ff {
-	case PIC_DD75RS:
-		// PIO VN59
-		v := c.ioPorts[PIC_DD75RS]
-		c.ioPorts[PIC_DD75RS] = 0
-		return v
+	case PIC_DD75A:
+		// PIO xx59, get IRR register
+		return c.dd75.IRR()
 	case UART_DD72RR:
-		// SIO VV51 CMD
+		// USART VV51 CMD
 		return c.dd72.Status()
 	case UART_DD72RD:
-		// SIO VV51 Data
+		// USART VV51 Data
 		return c.dd72.Receive()
 	case KBD_DD78PA:
 		// Keyboard data
@@ -36,6 +34,10 @@ func (c *ComputerType) IORead(port uint16) byte {
 		return c.fdc.GetFloppy()
 	case FDC_DATA:
 		return c.fdc.Data()
+	case FDC_TRACK:
+		return c.fdc.Track()
+	case FDC_SECT:
+		return c.fdc.Sector()
 
 	default:
 		log.Debugf("IORead from port: %x", port)
@@ -89,23 +91,22 @@ func (c *ComputerType) IOWrite(port uint16, val byte) {
 		c.dd70.Load(2, val)
 
 	case UART_DD72RR:
-		// SIO VV51 CMD
+		// USART VV51 CMD
 		c.dd72.Command(val)
 	case UART_DD72RD:
-		// SIO VV51 Data
+		// USART VV51 Data
 		c.dd72.Send(val)
 	case FDC_CMD:
 		c.fdc.SetCmd(val)
 	case FDC_DATA:
 		c.fdc.SetData(val)
 	case FDC_TRACK:
-		c.fdc.SetTrack(val)
+		c.fdc.SetTrackNo(val)
 	case FDC_SECT:
-		c.fdc.SetSector(val)
+		c.fdc.SetSectorNo(val)
 	case FLOPPY:
 		c.fdc.SetFloppy(val)
 	default:
 		//log.Debugf("OUT to Unknown port (%x), %x", bp, val)
-
 	}
 }
