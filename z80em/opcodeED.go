@@ -3,21 +3,19 @@ package z80em
 var edInstructions = []func(s *Z80Type){
 	// 0x40 : IN B, (C)
 	0x40: func(s *Z80Type) {
-		s.B = s.doIn((uint16(s.B) << 8) | uint16(s.C))
+		s.B = s.doIn(s.bc())
 	},
 	// 0x41 : OUT (C), B
 	0x41: func(s *Z80Type) {
-		s.core.IOWrite((uint16(s.B)<<8)|uint16(s.C), s.B)
+		s.core.IOWrite(s.bc(), s.B)
 	},
 	// 0x42 : SBC HL, BC
 	0x42: func(s *Z80Type) {
-		s.doHlSbc(uint16(s.C) | (uint16(s.B) << 8))
+		s.doHlSbc(s.bc())
 	},
 	// 0x43 : LD (nn), BC
 	0x43: func(s *Z80Type) {
-		addr := s.getAddr()
-		s.core.MemWrite(addr, s.C)
-		s.core.MemWrite(addr+1, s.B)
+		s.setWord(s.nextWord(), s.bc())
 	},
 	// 0x44 : NEG
 	0x44: func(s *Z80Type) {
@@ -50,9 +48,7 @@ var edInstructions = []func(s *Z80Type){
 	},
 	// 0x4b : LD BC, (nn)
 	0x4B: func(s *Z80Type) {
-		addr := s.getAddr()
-		s.C = s.core.MemRead(addr)
-		s.B = s.core.MemRead(addr + 1)
+		s.setBc(s.getWord(s.nextWord()))
 	},
 	// 0x4c : NEG (Undocumented)
 	0x4C: func(s *Z80Type) {
@@ -84,9 +80,7 @@ var edInstructions = []func(s *Z80Type){
 	},
 	// 0x53 : LD (nn), DE
 	0x53: func(s *Z80Type) {
-		addr := s.getAddr()
-		s.core.MemWrite(addr, s.E)
-		s.core.MemWrite(addr+1, s.D)
+		s.setWord(s.nextWord(), s.de())
 	},
 	// 0x54 : NEG (Undocumented)
 	0x54: func(s *Z80Type) {
@@ -126,9 +120,7 @@ var edInstructions = []func(s *Z80Type){
 	},
 	// 0x5b : LD DE, (nn)
 	0x5B: func(s *Z80Type) {
-		addr := s.getAddr()
-		s.E = s.core.MemRead(addr)
-		s.D = s.core.MemRead(addr + 1)
+		s.setDe(s.getWord(s.nextWord()))
 	},
 	// 0x5c : NEG (Undocumented)
 	0x5C: func(s *Z80Type) {
@@ -168,9 +160,7 @@ var edInstructions = []func(s *Z80Type){
 	},
 	// 0x63 : LD (nn), HL (Undocumented)
 	0x63: func(s *Z80Type) {
-		addr := s.getAddr()
-		s.core.MemWrite(addr, s.L)
-		s.core.MemWrite(addr+1, s.H)
+		s.setWord(s.nextWord(), s.hl())
 	},
 	// 0x64 : NEG (Undocumented)
 	0x64: func(s *Z80Type) {
@@ -215,9 +205,7 @@ var edInstructions = []func(s *Z80Type){
 	},
 	// 0x6b : LD HL, (nn) (Undocumented)
 	0x6B: func(s *Z80Type) {
-		addr := s.getAddr()
-		s.L = s.core.MemRead(addr)
-		s.H = s.core.MemRead(addr + 1)
+		s.setHl(s.getWord(s.nextWord()))
 	},
 	// 0x6C : NEG (Undocumented)
 	0x6C: func(s *Z80Type) {
@@ -262,9 +250,7 @@ var edInstructions = []func(s *Z80Type){
 	},
 	// 0x73 : LD (nn), SP
 	0x73: func(s *Z80Type) {
-		addr := s.getAddr()
-		s.core.MemWrite(addr, byte(s.SP&0x00ff))
-		s.core.MemWrite(addr+1, byte(s.SP>>8))
+		s.setWord(s.nextWord(), s.SP)
 	},
 	// 0x74 : NEG (Undocumented)
 	0x74: func(s *Z80Type) {
@@ -293,9 +279,7 @@ var edInstructions = []func(s *Z80Type){
 	},
 	// 0x7b : LD SP, (nn)
 	0x7B: func(s *Z80Type) {
-		addr := s.getAddr()
-		s.SP = uint16(s.core.MemRead(addr))
-		s.SP |= uint16(s.core.MemRead(addr+1)) << 8
+		s.SP = s.getWord(s.nextWord())
 	},
 	// 0x7c : NEG (Undocumented)
 	0x7C: func(s *Z80Type) {
@@ -409,7 +393,7 @@ var edInstructions = []func(s *Z80Type){
 }
 
 func (z *Z80Type) opcodeED() {
-	z.R = (z.R & 0x80) | (((z.R & 0x7f) + 1) & 0x7f)
+	z.incR()
 	z.PC++
 
 	opcode := z.core.M1MemRead(z.PC)

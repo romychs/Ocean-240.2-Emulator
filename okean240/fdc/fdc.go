@@ -48,9 +48,9 @@ const (
 )
 
 const (
-	StatusTR0        = 0x04 // TR0 - Head at track 0
-	StatusRNF        = 0x10 // RNF - Record not found
-	StatusSeekError  = 0x10 // Sector out of disk
+	StatusTR0 = 0x04 // TR0 - Head at track 0
+	StatusRNF = 0x10 // RNF - Record not found
+	//	StatusSeekError  = 0x10 // Sector out of disk
 	StatusHeadLoaded = 0x20 // Head on disk
 )
 

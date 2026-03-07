@@ -11,13 +11,11 @@ var ddInstructions = []func(s *Z80Type){
 	},
 	// 0x21 : LD IX, nn
 	0x21: func(s *Z80Type) {
-		s.IX = s.getAddr()
+		s.IX = s.nextWord()
 	},
 	// 0x22 : LD (nn), IX
 	0x22: func(s *Z80Type) {
-		addr := s.getAddr()
-		s.core.MemWrite(addr, byte(s.IX&0x00ff))
-		s.core.MemWrite(addr+1, byte(s.IX>>8))
+		s.setWord(s.nextWord(), s.IX)
 	},
 	// 0x23 : INC IX
 	0x23: func(s *Z80Type) {
@@ -42,8 +40,7 @@ var ddInstructions = []func(s *Z80Type){
 	},
 	// 0x2a : LD IX, (nn)
 	0x2A: func(s *Z80Type) {
-		addr := s.getAddr()
-		s.IX = (uint16(s.core.MemRead(addr)) << 8) | uint16(s.core.MemRead(addr+1))
+		s.IX = s.getWord(s.nextWord())
 	},
 	// 0x2b : DEC IX
 	0x2B: func(s *Z80Type) {
@@ -94,8 +91,7 @@ var ddInstructions = []func(s *Z80Type){
 	},
 	// 0x46 : LD B, (IX+n)
 	0x46: func(s *Z80Type) {
-		offset := s.getOffset(s.IX)
-		s.B = s.core.MemRead(offset)
+		s.B = s.core.MemRead(s.getOffset(s.IX))
 	},
 	// 0x4c : LD C, IXH (Undocumented)
 	0x4C: func(s *Z80Type) {
@@ -107,8 +103,7 @@ var ddInstructions = []func(s *Z80Type){
 	},
 	// 0x4e : LD C, (IX+n)
 	0x4E: func(s *Z80Type) {
-		offset := s.getOffset(s.IX)
-		s.C = s.core.MemRead(offset)
+		s.C = s.core.MemRead(s.getOffset(s.IX))
 	},
 	// 0x54 : LD D, IXH (Undocumented)
 	0x54: func(s *Z80Type) {
@@ -116,7 +111,7 @@ var ddInstructions = []func(s *Z80Type){
 	},
 	// 0x55 : LD D, IXL (Undocumented)
 	0x55: func(s *Z80Type) {
-		s.D = byte(s.IX & 0x00ff)
+		s.D = byte(s.IX)
 	},
 	// 0x56 : LD D, (IX+n)
 	0x56: func(s *Z80Type) {
@@ -125,12 +120,11 @@ var ddInstructions = []func(s *Z80Type){
 	},
 	// 0x5d : LD E, IXL (Undocumented)
 	0x5D: func(s *Z80Type) {
-		s.E = byte(s.IX & 0x00ff)
+		s.E = byte(s.IX)
 	},
 	// 0x5e : LD E, (IX+n)
 	0x5E: func(s *Z80Type) {
-		offset := s.getOffset(s.IX)
-		s.E = s.core.MemRead(offset)
+		s.E = s.core.MemRead(s.getOffset(s.IX))
 	},
 	// 0x60 : LD IXH, B (Undocumented)
 	0x60: func(s *Z80Type) {
@@ -158,8 +152,7 @@ var ddInstructions = []func(s *Z80Type){
 	},
 	// 0x66 : LD H, (IX+n)
 	0x66: func(s *Z80Type) {
-		offset := s.getOffset(s.IX)
-		s.H = s.core.MemRead(offset)
+		s.H = s.core.MemRead(s.getOffset(s.IX))
 	},
 	// 0x67 : LD IXH, A (Undocumented)
 	0x67: func(s *Z80Type) {
@@ -191,8 +184,7 @@ var ddInstructions = []func(s *Z80Type){
 	},
 	// 0x6e : LD L, (IX+n)
 	0x6e: func(s *Z80Type) {
-		offset := s.getOffset(s.IX)
-		s.L = s.core.MemRead(offset)
+		s.L = s.core.MemRead(s.getOffset(s.IX))
 	},
 	// 0x6f : LD IXL, A (Undocumented)
 	0x6f: func(s *Z80Type) {
@@ -200,38 +192,31 @@ var ddInstructions = []func(s *Z80Type){
 	},
 	// 0x70 : LD (IX+n), B
 	0x70: func(s *Z80Type) {
-		offset := s.getOffset(s.IX)
-		s.core.MemWrite(offset, s.B)
+		s.core.MemWrite(s.getOffset(s.IX), s.B)
 	},
 	// 0x71 : LD (IX+n), C
 	0x71: func(s *Z80Type) {
-		offset := s.getOffset(s.IX)
-		s.core.MemWrite(offset, s.C)
+		s.core.MemWrite(s.getOffset(s.IX), s.C)
 	},
 	// 0x72 : LD (IX+n), D
 	0x72: func(s *Z80Type) {
-		offset := s.getOffset(s.IX)
-		s.core.MemWrite(offset, s.D)
+		s.core.MemWrite(s.getOffset(s.IX), s.D)
 	},
 	// 0x73 : LD (IX+n), E
 	0x73: func(s *Z80Type) {
-		offset := s.getOffset(s.IX)
-		s.core.MemWrite(offset, s.E)
+		s.core.MemWrite(s.getOffset(s.IX), s.E)
 	},
 	// 0x74 : LD (IX+n), H
 	0x74: func(s *Z80Type) {
-		offset := s.getOffset(s.IX)
-		s.core.MemWrite(offset, s.H)
+		s.core.MemWrite(s.getOffset(s.IX), s.H)
 	},
 	// 0x75 : LD (IX+n), L
 	0x75: func(s *Z80Type) {
-		offset := s.getOffset(s.IX)
-		s.core.MemWrite(offset, s.L)
+		s.core.MemWrite(s.getOffset(s.IX), s.L)
 	},
 	// 0x77 : LD (IX+n), A
 	0x77: func(s *Z80Type) {
-		offset := s.getOffset(s.IX)
-		s.core.MemWrite(offset, s.A)
+		s.core.MemWrite(s.getOffset(s.IX), s.A)
 	},
 	// 0x7c : LD A, IXH (Undocumented)
 	0x7C: func(s *Z80Type) {
@@ -243,8 +228,7 @@ var ddInstructions = []func(s *Z80Type){
 	},
 	// 0x7e : LD A, (IX+n)
 	0x7E: func(s *Z80Type) {
-		offset := s.getOffset(s.IX)
-		s.A = s.core.MemRead(offset)
+		s.A = s.core.MemRead(s.getOffset(s.IX))
 	},
 	// 0x84 : ADD A, IXH (Undocumented)
 	0x84: func(s *Z80Type) {
@@ -252,12 +236,11 @@ var ddInstructions = []func(s *Z80Type){
 	},
 	// 0x85 : ADD A, IXL (Undocumented)
 	0x85: func(s *Z80Type) {
-		s.doAdd(byte(s.IX & 0x00ff))
+		s.doAdd(byte(s.IX))
 	},
 	// 0x86 : ADD A, (IX+n)
 	0x86: func(s *Z80Type) {
-		offset := s.getOffset(s.IX)
-		s.doAdd(s.core.MemRead(offset))
+		s.doAdd(s.core.MemRead(s.getOffset(s.IX)))
 	},
 	// 0x8c : ADC A, IXH (Undocumented)
 	0x8C: func(s *Z80Type) {
@@ -265,12 +248,11 @@ var ddInstructions = []func(s *Z80Type){
 	},
 	// 0x8d : ADC A, IXL (Undocumented)
 	0x8D: func(s *Z80Type) {
-		s.doAdc(byte(s.IX & 0x00ff))
+		s.doAdc(byte(s.IX))
 	},
 	// 0x8e : ADC A, (IX+n)
 	0x8E: func(s *Z80Type) {
-		offset := s.getOffset(s.IX)
-		s.doAdc(s.core.MemRead(offset))
+		s.doAdc(s.core.MemRead(s.getOffset(s.IX)))
 	},
 	// 0x94 : SUB IXH (Undocumented)
 	0x94: func(s *Z80Type) {
@@ -278,12 +260,11 @@ var ddInstructions = []func(s *Z80Type){
 	},
 	// 0x95 : SUB IXL (Undocumented)
 	0x95: func(s *Z80Type) {
-		s.doSub(byte(s.IX & 0x00ff))
+		s.doSub(byte(s.IX))
 	},
 	// 0x96 : SUB A, (IX+n)
 	0x96: func(s *Z80Type) {
-		offset := s.getOffset(s.IX)
-		s.doSub(s.core.MemRead(offset))
+		s.doSub(s.core.MemRead(s.getOffset(s.IX)))
 	},
 	// 0x9c : SBC IXH (Undocumented)
 	0x9C: func(s *Z80Type) {
@@ -291,12 +272,11 @@ var ddInstructions = []func(s *Z80Type){
 	},
 	// 0x9d : SBC IXL (Undocumented)
 	0x9D: func(s *Z80Type) {
-		s.doSbc(byte(s.IX & 0x00ff))
+		s.doSbc(byte(s.IX))
 	},
 	// 0x9e : SBC A, (IX+n)
 	0x9E: func(s *Z80Type) {
-		offset := s.getOffset(s.IX)
-		s.doSbc(s.core.MemRead(offset))
+		s.doSbc(s.core.MemRead(s.getOffset(s.IX)))
 	},
 	// 0xa4 : AND IXH (Undocumented)
 	0xA4: func(s *Z80Type) {
@@ -304,12 +284,11 @@ var ddInstructions = []func(s *Z80Type){
 	},
 	// 0xa5 : AND IXL (Undocumented)
 	0xA5: func(s *Z80Type) {
-		s.doAnd(byte(s.IX & 0x00ff))
+		s.doAnd(byte(s.IX))
 	},
 	// 0xa6 : AND A, (IX+n)
 	0xA6: func(s *Z80Type) {
-		offset := s.getOffset(s.IX)
-		s.doAnd(s.core.MemRead(offset))
+		s.doAnd(s.core.MemRead(s.getOffset(s.IX)))
 	},
 	// 0xac : XOR IXH (Undocumented)
 	0xAC: func(s *Z80Type) {
@@ -317,12 +296,11 @@ var ddInstructions = []func(s *Z80Type){
 	},
 	// 0xad : XOR IXL (Undocumented)
 	0xAD: func(s *Z80Type) {
-		s.doXor(byte(s.IX & 0x00ff))
+		s.doXor(byte(s.IX))
 	},
 	// 0xae : XOR A, (IX+n)
 	0xAE: func(s *Z80Type) {
-		offset := s.getOffset(s.IX)
-		s.doXor(s.core.MemRead(offset))
+		s.doXor(s.core.MemRead(s.getOffset(s.IX)))
 	},
 	// 0xb4 : OR IXH (Undocumented)
 	0xB4: func(s *Z80Type) {
@@ -330,12 +308,11 @@ var ddInstructions = []func(s *Z80Type){
 	},
 	// 0xb5 : OR IXL (Undocumented)
 	0xB5: func(s *Z80Type) {
-		s.doOr(byte(s.IX & 0x00ff))
+		s.doOr(byte(s.IX))
 	},
 	// 0xb6 : OR A, (IX+n)
 	0xB6: func(s *Z80Type) {
-		offset := s.getOffset(s.IX)
-		s.doOr(s.core.MemRead(offset))
+		s.doOr(s.core.MemRead(s.getOffset(s.IX)))
 	},
 	// 0xbc : CP IXH (Undocumented)
 	0xBC: func(s *Z80Type) {
@@ -343,12 +320,11 @@ var ddInstructions = []func(s *Z80Type){
 	},
 	// 0xbd : CP IXL (Undocumented)
 	0xBD: func(s *Z80Type) {
-		s.doCp(byte(s.IX & 0x00ff))
+		s.doCp(byte(s.IX))
 	},
 	// 0xbe : CP A, (IX+n)
 	0xBE: func(s *Z80Type) {
-		offset := s.getOffset(s.IX)
-		s.doCp(s.core.MemRead(offset))
+		s.doCp(s.core.MemRead(s.getOffset(s.IX)))
 	},
 	// 0xcb : CB Prefix (IX bit instructions)
 	0xCB: func(s *Z80Type) {
@@ -360,11 +336,9 @@ var ddInstructions = []func(s *Z80Type){
 	},
 	// 0xe3 : EX (SP), IX
 	0xE3: func(s *Z80Type) {
-		temp := s.IX
-		s.IX = uint16(s.core.MemRead(s.SP))
-		s.IX |= uint16(s.core.MemRead(s.SP+1)) << 8
-		s.core.MemWrite(s.SP, byte(temp&0x00ff))
-		s.core.MemWrite(s.SP+1, byte(temp>>8))
+		ix := s.IX
+		s.IX = s.getWord(s.SP)
+		s.setWord(s.SP, ix)
 	},
 	// 0xe5 : PUSH IX
 	0xE5: func(s *Z80Type) {
@@ -393,13 +367,12 @@ func (z *Z80Type) getOffset(reg uint16) uint16 {
 }
 
 func (z *Z80Type) opcodeDD() {
-	z.R = (z.R & 0x80) | (((z.R & 0x7f) + 1) & 0x7f)
+	z.incR()
 	z.PC++
 	opcode := z.core.M1MemRead(z.PC)
 
 	fun := ddInstructions[opcode]
 	if fun != nil {
-		//func = func.bind(this);
 		fun(z)
 		z.CycleCounter += CycleCountsDd[opcode]
 	} else {
@@ -480,4 +453,23 @@ func (z *Z80Type) opcodeDDCB() {
 	}
 
 	z.CycleCounter += CycleCountsCb[opcode] + 8
+}
+
+// opcodeFD do same for IY as for IX (DD prefix)
+func (z *Z80Type) opcodeFD() {
+	z.incR()
+	z.PC++
+	opcode := z.core.M1MemRead(z.PC)
+	fun := ddInstructions[opcode]
+	if fun != nil {
+		var temp = z.IX
+		z.IX = z.IY
+		fun(z)
+		z.IY = z.IX
+		z.IX = temp
+		z.CycleCounter += CycleCountsDd[opcode]
+	} else {
+		z.PC--
+		z.CycleCounter += CycleCounts[0]
+	}
 }

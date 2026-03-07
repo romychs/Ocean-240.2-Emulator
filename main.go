@@ -23,7 +23,7 @@ var BuildTime = "2026-03-01"
 //go:embed hex/format.hex
 var serialBytes []byte
 
-//go:embed bin/zexall.com
+//go:embed bin/TET.COM
 var ramBytes []byte
 
 var needReset = false
@@ -47,14 +47,14 @@ func main() {
 	computer.SetSerialBytes(serialBytes)
 	computer.LoadFloppy()
 
-	w, raster, label := mainWindow(computer, conf)
+	w, raster, label := mainWindow(computer)
 
 	go emulator(computer)
 	go screen(computer, raster, label, conf)
 	(*w).ShowAndRun()
 }
 
-func mainWindow(computer *okean240.ComputerType, emuConfig *config.OkEmuConfig) (*fyne.Window, *canvas.Raster, *widget.Label) {
+func mainWindow(computer *okean240.ComputerType) (*fyne.Window, *canvas.Raster, *widget.Label) {
 	emulatorApp := app.New()
 	w := emulatorApp.NewWindow("Океан 240.2")
 	w.Canvas().SetOnTypedKey(
@@ -107,9 +107,9 @@ func mainWindow(computer *okean240.ComputerType, emuConfig *config.OkEmuConfig) 
 		widget.NewButton("RUN", func() {
 			computer.SetRamBytes(ramBytes)
 		}),
-		widget.NewButton("DUMP", func() {
-			computer.Dump(0x399, 15000)
-		}),
+		//widget.NewButton("DUMP", func() {
+		//	computer.Dump(0x399, 15000)
+		//}),
 		widget.NewSeparator(),
 		widget.NewButton("Reset", func() {
 			needReset = true
@@ -138,10 +138,6 @@ func screen(computer *okean240.ComputerType, raster *canvas.Raster, label *widge
 	var freq uint64 = 0
 
 	for range ticker.C {
-		if needReset {
-			computer.Reset(emuConfig)
-			needReset = false
-		}
 		frame++
 		// redraw screen here
 		fyne.Do(func() {
@@ -156,20 +152,31 @@ func screen(computer *okean240.ComputerType, raster *canvas.Raster, label *widge
 	}
 }
 
+const ticksPerTicker = 3
+
 func emulator(computer *okean240.ComputerType) {
-	ticker := time.NewTicker(133 * time.Nanosecond)
+	ticker := time.NewTicker(66 * time.Nanosecond)
 	var ticks = 0
-	var ticksCPU = 0
+	var nextClock = ticks + ticksPerTicker
+	//var ticksCPU = 3
 	for range ticker.C {
-		time.Sleep(133 * time.Nanosecond)
+		//for {
+		//time.Sleep(133 * time.Nanosecond)
 		ticks++
-		if ticks%5 == 0 {
+		if ticks%10 == 0 {
 			// 1.5 MHz
 			computer.TimerClk()
 		}
-		if ticks > ticksCPU {
-			ticksCPU = ticks + computer.Do()*2
+		if ticks >= nextClock {
+			nextClock = ticks + computer.Do()*ticksPerTicker
 		}
+		if needReset {
+			computer.Reset()
+			needReset = false
+		}
+		//if ticks > ticksCPU {
+		//ticksCPU = ticks + computer.Do()*2
+		//}
 	}
 }
 

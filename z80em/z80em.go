@@ -52,7 +52,7 @@ type Z80Type struct {
 }
 
 type MemIoRW interface {
-	// M1MemRead Read byte from memory for specified address
+	// M1MemRead Read byte from memory for specified address @ M1 cycle
 	M1MemRead(addr uint16) byte
 	// MemRead Read byte from memory for specified address
 	MemRead(addr uint16) byte
@@ -198,12 +198,7 @@ func New(memIoRW MemIoRW) *Z80Type {
 
 func (z *Z80Type) RunInstruction() byte {
 
-	// R is incremented at the start of every instruction cycle,
-	// before the instruction actually runs.
-	// The high bit of R is not affected by this increment,
-	// it can only be changed using the LD R, A instruction.
-	// Note: also a HALT does increment the R register.
-	z.R = (z.R & 0x80) | (((z.R & 0x7f) + 1) & 0x7f)
+	z.incR()
 
 	if !z.Halted {
 		// If the previous instruction was a DI or an EI,
@@ -242,11 +237,13 @@ func (z *Z80Type) RunInstruction() byte {
 		cycleCounter := z.CycleCounter
 		z.CycleCounter = 0
 		return cycleCounter
-	} else { // HALTED
-		// During HALT, NOPs are executed which is 4T
-		z.core.M1MemRead(z.PC) // HALT does a normal M1 fetch to keep the memory refresh active. The result is ignored (NOP).
-		return 4
 	}
+
+	// HALTED
+	// During HALT, NOPs are executed which is 4T
+	z.core.M1MemRead(z.PC) // HALT does a normal M1 fetch to keep the memory refresh active. The result is ignored (NOP).
+	return 4
+
 }
 
 // Simulates pulsing the processor's INT (or NMI) pin
@@ -262,7 +259,7 @@ func (z *Z80Type) interrupt(nonMaskable bool, data byte) {
 
 		// The high bit of R is not affected by this increment,
 		//  it can only be changed using the LD R, A instruction.
-		z.R = (z.R & 0x80) | (((z.R & 0x7f) + 1) & 0x7f)
+		z.incR()
 
 		// Non-maskable interrupts are always handled the same way;
 		// clear IFF1 and then do a CALL 0x0066.
@@ -283,7 +280,7 @@ func (z *Z80Type) interrupt(nonMaskable bool, data byte) {
 
 		// The high bit of R is not affected by this increment,
 		//  it can only be changed using the LD R,A instruction.
-		z.R = (z.R & 0x80) | (((z.R & 0x7f) + 1) & 0x7f)
+		z.incR()
 
 		z.Halted = false
 		z.Iff1 = 0
@@ -312,7 +309,7 @@ func (z *Z80Type) interrupt(nonMaskable bool, data byte) {
 			//  but it doesn't appear that this is actually the case on the hardware,
 			//  so we don't attempt to enforce that here.
 			vectorAddress := (uint16(z.I) << 8) | uint16(data)
-			z.PC = uint16(z.core.MemRead(vectorAddress)) | (uint16(z.core.MemRead(vectorAddress+1)) << 8)
+			z.PC = z.getWord(vectorAddress) //uint16( z.core.MemRead(vectorAddress)) | (uint16(z.core.MemRead(vectorAddress+1)) << 8)
 			z.CycleCounter += 19
 			// A "notification" is generated so that the calling program can break on it.
 			z.interruptOccurred = true
@@ -342,7 +339,7 @@ func (z *Z80Type) getOperand(opcode byte) byte {
 	case 5:
 		return z.L
 	case 6:
-		return z.core.MemRead(uint16(z.H)<<8 | uint16(z.L))
+		return z.core.MemRead(z.hl())
 	default:
 		return z.A
 	}
@@ -381,7 +378,7 @@ func (z *Z80Type) load8bit(opcode byte, operand byte) {
 	case 5:
 		z.L = operand
 	case 6:
-		z.core.MemWrite(uint16(z.H)<<8|uint16(z.L), operand)
+		z.core.MemWrite(z.hl(), operand)
 	default:
 		z.A = operand
 	}
@@ -407,10 +404,6 @@ func (z *Z80Type) alu8bit(opcode byte, operand byte) {
 	default:
 		z.doCp(operand)
 	}
-}
-
-func (z *Z80Type) otherInstructions(opcode byte) {
-
 }
 
 // getFlagsRegister return whole F register
@@ -478,10 +471,6 @@ func (z *Z80Type) updateXYFlags(result byte) {
 	z.Flags.X = result&0x08 != 0
 }
 
-func getParity(value byte) bool {
-	return ParityBits[value]
-}
-
 // PushWord - Decrement stack pointer and put specified word value to stack
 func (z *Z80Type) PushWord(operand uint16) {
 	z.SP--
@@ -507,8 +496,7 @@ func (z *Z80Type) doConditionalAbsoluteJump(condition bool) {
 		//  because the instruction decoder increments the PC
 		//  unconditionally at the end of every instruction,
 		//  and we need to counteract that so we end up at the jump target.
-		// TODO: Check for increment CycleCounter
-		z.PC = uint16(z.core.MemRead(z.PC+1)) | (uint16(z.core.MemRead(z.PC+2)) << 8)
+		z.PC = z.getWord(z.PC + 1) //uint16( z.core.MemRead(z.PC+1)) | (uint16(z.core.MemRead(z.PC+2)) << 8)
 		z.PC--
 	} else {
 		// We're not taking this jump, just move the PC past the operand.
@@ -540,7 +528,7 @@ func (z *Z80Type) doConditionalCall(condition bool) {
 	if condition {
 		z.CycleCounter += 7
 		z.PushWord(z.PC + 3)
-		z.PC = uint16(z.core.MemRead(z.PC+1)) | (uint16(z.core.MemRead(z.PC+2)) << 8)
+		z.PC = z.getWord(z.PC + 1) // uint16( z.core.MemRead(z.PC+1)) | (uint16(z.core.MemRead(z.PC+2)) << 8)
 		z.PC--
 	} else {
 		z.PC += 2
@@ -560,16 +548,6 @@ func (z *Z80Type) doReset(address uint16) {
 	z.PC = address - 1
 }
 
-//func (z *Z80Type) setBaseFlags(operand byte, result uint16) {
-//	z.Flags.S = result&0x80 != 0
-//	z.Flags.Z = result&0x00ff == 0
-//	z.Flags.H = (((operand & 0x0f) + (z.A & 0x0f)) & 0x10) != 0
-//	// An overflow has happened if the sign bits of the accumulator and the operand
-//	// don't match the sign bit of the result value.
-//	z.Flags.P = ((z.A & 0x80) == (operand & 0x80)) && (z.A&0x80 != byte(result&0x80))
-//	z.Flags.C = result&0x0100 != 0
-//}
-
 // doAdd Handle ADD A, [operand] instructions.
 func (z *Z80Type) doAdd(operand byte) {
 	var result = uint16(z.A) + uint16(operand)
@@ -585,6 +563,7 @@ func (z *Z80Type) doAdd(operand byte) {
 	z.updateXYFlags(z.A)
 }
 
+// doAdc Handle ADC A, [operand] instructions.
 func (z *Z80Type) doAdc(operand byte) {
 	add := byte(0)
 	if z.Flags.C {
@@ -603,6 +582,7 @@ func (z *Z80Type) doAdc(operand byte) {
 	z.updateXYFlags(z.A)
 }
 
+// doSub Handle SUB A, [operand] instructions.
 func (z *Z80Type) doSub(operand byte) {
 	var result = uint16(z.A) - uint16(operand)
 
@@ -617,6 +597,7 @@ func (z *Z80Type) doSub(operand byte) {
 	z.updateXYFlags(z.A)
 }
 
+// doSbc Handle SBC A, [operand] instructions.
 func (z *Z80Type) doSbc(operand byte) {
 	sub := byte(0)
 	if z.Flags.C {
@@ -635,6 +616,7 @@ func (z *Z80Type) doSbc(operand byte) {
 	z.updateXYFlags(z.A)
 }
 
+// setLogicFlags Set common flags for logic ALU Ops
 func (z *Z80Type) setLogicFlags() {
 	z.Flags.S = z.A&0x80 != 0
 	z.Flags.Z = z.A == 0
@@ -643,6 +625,7 @@ func (z *Z80Type) setLogicFlags() {
 	z.Flags.C = false
 }
 
+// doAnd handle AND [operand] instructions.
 func (z *Z80Type) doAnd(operand byte) {
 	z.A &= operand
 	z.setLogicFlags()
@@ -650,6 +633,7 @@ func (z *Z80Type) doAnd(operand byte) {
 	z.updateXYFlags(z.A)
 }
 
+// doXor handle XOR [operand] instructions.
 func (z *Z80Type) doXor(operand byte) {
 	z.A ^= operand
 	z.setLogicFlags()
@@ -657,6 +641,7 @@ func (z *Z80Type) doXor(operand byte) {
 	z.updateXYFlags(z.A)
 }
 
+// doOr handle OR [operand] instructions.
 func (z *Z80Type) doOr(operand byte) {
 	z.A |= operand
 	z.setLogicFlags()
@@ -664,6 +649,7 @@ func (z *Z80Type) doOr(operand byte) {
 	z.updateXYFlags(z.A)
 }
 
+// doCp handle CP [operand] instructions.
 func (z *Z80Type) doCp(operand byte) {
 	tmp := z.A
 	z.doSub(operand)
@@ -671,6 +657,7 @@ func (z *Z80Type) doCp(operand byte) {
 	z.updateXYFlags(operand)
 }
 
+// doInc handle INC [operand] instructions.
 func (z *Z80Type) doInc(operand byte) byte {
 	var result = uint16(operand) + 1
 	r8 := byte(result & 0xff)
@@ -685,6 +672,7 @@ func (z *Z80Type) doInc(operand byte) byte {
 	return r8
 }
 
+// doDec handle DEC [operand] instructions.
 func (z *Z80Type) doDec(operand byte) byte {
 	var result = uint16(operand) - 1
 	r8 := byte(result & 0xff)
@@ -699,27 +687,30 @@ func (z *Z80Type) doDec(operand byte) byte {
 	return r8
 }
 
+// doHlAdd handle ADD HL,[operand] instructions.
 func (z *Z80Type) doHlAdd(operand uint16) {
 	// The HL arithmetic instructions are the same as the A ones,
 	//  just with twice as many bits happening.
-	hl := uint16(z.L) | (uint16(z.H) << 8)
+	hl := z.hl() //uint16(z.L) | (uint16(z.H) << 8)
 	result := uint32(hl) + uint32(operand)
 	z.Flags.N = false
 	z.Flags.C = result > 0xffff
 	z.Flags.H = ((hl&0x0fff)+(operand&0x0fff))&0x1000 > 0
 
-	z.L = byte(result & 0xff)
-	z.H = byte((result & 0xff00) >> 8)
+	z.setHl(uint16(result))
+	//z.L = byte(result & 0xff)
+	//z.H = byte((result & 0xff00) >> 8)
 
 	z.updateXYFlags(z.H)
 }
 
+// doHlAdc handle ADC HL,[operand] instructions.
 func (z *Z80Type) doHlAdc(operand uint16) {
 	if z.Flags.C {
 		operand++
 	}
 
-	hl := uint16(z.L) | (uint16(z.H) << 8)
+	hl := z.hl()
 	result := uint32(hl) + uint32(operand)
 
 	z.Flags.S = (result & 0x8000) != 0
@@ -729,18 +720,20 @@ func (z *Z80Type) doHlAdc(operand uint16) {
 	z.Flags.N = false
 	z.Flags.C = result > 0xffff
 
-	z.L = byte(result & 0xff)
-	z.H = byte((result & 0xff00) >> 8)
+	z.setHl(uint16(result))
+	//z.L = byte(result & 0xff)
+	//z.H = byte((result & 0xff00) >> 8)
 
 	z.updateXYFlags(z.H)
 }
 
+// doHlSbc handle SBC HL,[operand] instructions.
 func (z *Z80Type) doHlSbc(operand uint16) {
 	if z.Flags.C {
 		operand++
 	}
 
-	hl := uint16(z.L) | (uint16(z.H) << 8)
+	hl := z.hl() //uint16(z.L) | (uint16(z.H) << 8)
 	result := uint32(hl) - uint32(operand)
 
 	z.Flags.S = (result & 0x8000) != 0
@@ -750,8 +743,9 @@ func (z *Z80Type) doHlSbc(operand uint16) {
 	z.Flags.N = true
 	z.Flags.C = result > 0xffff
 
-	z.L = byte(result & 0xff)
-	z.H = byte((result & 0xff00) >> 8)
+	z.setHl(uint16(result))
+	//z.L = byte(result & 0xff)
+	//z.H = byte((result & 0xff00) >> 8)
 
 	z.updateXYFlags(z.H)
 }
@@ -786,10 +780,8 @@ func (z *Z80Type) doNeg() {
 
 func (z *Z80Type) doLdi() {
 	// Copy the value that we're supposed to copy.
-	hl := uint16(z.L) | (uint16(z.H) << 8)
-	de := uint16(z.E) | (uint16(z.D) << 8)
-	readValue := z.core.MemRead(hl)
-	z.core.MemWrite(de, readValue)
+	readValue := z.core.MemRead(z.hl())
+	z.core.MemWrite(z.de(), readValue)
 
 	z.incDe()
 	z.incHl()
@@ -802,63 +794,49 @@ func (z *Z80Type) doLdi() {
 	z.Flags.X = ((z.A+readValue)&0x08)>>3 != 0
 }
 
+func (z *Z80Type) fhv() byte {
+	if z.Flags.H {
+		return 1
+	}
+	return 0
+}
+
 func (z *Z80Type) doCpi() {
 	tempCarry := z.Flags.C
-	hl := uint16(z.L) | (uint16(z.H) << 8)
-	readValue := z.core.MemRead(hl)
+	readValue := z.core.MemRead(z.hl())
 	z.doCp(readValue)
 
 	z.Flags.C = tempCarry
-	var fh byte = 0
-	if z.Flags.H {
-		fh = 1
-	}
+	fh := z.fhv()
 	z.Flags.Y = ((z.A-readValue-fh)&0x02)>>1 != 0
 	z.Flags.X = ((z.A-readValue-fh)&0x08)>>3 != 0
-
 	z.incHl()
 	z.decBc()
-
 	z.Flags.P = (z.B | z.C) != 0
 }
 
 func (z *Z80Type) doIni() {
-	hl := (uint16(z.H) << 8) | uint16(z.L)
-	bc := (uint16(z.B) << 8) | uint16(z.C)
-	z.core.MemWrite(hl, z.core.IORead(bc))
-
+	z.core.MemWrite(z.hl(), z.core.IORead(z.bc()))
 	z.incHl()
-
 	z.B = z.doDec(z.B)
 	z.Flags.N = true
 }
 
 func (z *Z80Type) doOuti() {
-	// Zilog pseudo code is wrong, see: https://github.com/maziac/z80-instruction-set/pull/10
 	z.B = z.doDec(z.B)
-	hl := (uint16(z.H) << 8) | uint16(z.L)
-	bc := (uint16(z.B) << 8) | uint16(z.C)
-	z.core.IOWrite(bc, z.core.MemRead(hl))
-
+	z.core.IOWrite(z.bc(), z.core.MemRead(z.hl()))
 	z.incHl()
-
 	z.Flags.N = true
 }
 
 func (z *Z80Type) doLdd() {
 	z.Flags.N = false
 	z.Flags.H = false
-
-	hl := (uint16(z.H) << 8) | uint16(z.L)
-	de := (uint16(z.D) << 8) | uint16(z.E)
-
-	readValue := z.core.MemRead(hl)
-	z.core.MemWrite(de, readValue)
-
+	readValue := z.core.MemRead(z.hl())
+	z.core.MemWrite(z.de(), readValue)
 	z.decDe()
 	z.decHl()
 	z.decBc()
-
 	z.Flags.P = (z.C | z.B) != 0
 	z.Flags.Y = ((z.A+readValue)&0x02)>>1 != 0
 	z.Flags.X = ((z.A+readValue)&0x08)>>3 != 0
@@ -866,16 +844,12 @@ func (z *Z80Type) doLdd() {
 
 func (z *Z80Type) doCpd() {
 	tempCarry := z.Flags.C
-	hl := uint16(z.L) | (uint16(z.H) << 8)
-	readValue := z.core.MemRead(hl)
+	readValue := z.core.MemRead(z.hl())
 	z.doCp(readValue)
 
 	z.Flags.C = tempCarry
 
-	var fh byte = 0
-	if z.Flags.H {
-		fh = 1
-	}
+	fh := z.fhv()
 
 	z.Flags.Y = ((z.A-readValue-fh)&0x02)>>1 != 0
 	z.Flags.X = ((z.A-readValue-fh)&0x08)>>3 != 0
@@ -887,20 +861,15 @@ func (z *Z80Type) doCpd() {
 }
 
 func (z *Z80Type) doInd() {
-	hl := (uint16(z.H) << 8) | uint16(z.L)
-	bc := (uint16(z.B) << 8) | uint16(z.C)
-	z.core.MemWrite(hl, z.core.IORead(bc))
+	z.core.MemWrite(z.hl(), z.core.IORead(z.bc()))
 	z.decHl()
 	z.B = z.doDec(z.B)
 	z.Flags.N = true
 }
 
 func (z *Z80Type) doOutd() {
-	// Zilog pseudo code is wrong, see: https://github.com/maziac/z80-instruction-set/pull/10
 	z.B = z.doDec(z.B)
-	hl := (uint16(z.H) << 8) | uint16(z.L)
-	bc := (uint16(z.B) << 8) | uint16(z.C)
-	z.core.IOWrite(bc, z.core.MemRead(hl))
+	z.core.IOWrite(z.bc(), z.core.MemRead(z.hl()))
 	z.decHl()
 	z.Flags.N = true
 }
@@ -999,29 +968,6 @@ func (z *Z80Type) setShiftFlags(operand byte) {
 	z.updateXYFlags(operand)
 }
 
-//type Operation func()
-
-func (z *Z80Type) opcodeFD() {
-	z.R = (z.R & 0x80) | (((z.R & 0x7f) + 1) & 0x7f)
-	z.PC++
-	opcode := z.core.M1MemRead(z.PC)
-	fun := ddInstructions[opcode]
-	if fun != nil {
-		// Rather than copy and paste all the IX instructions into IY instructions,
-		//  what we'll do is sneakily copy IY into IX, run the IX instruction,
-		//  and then copy the result into IY and restore the old IX.
-		var temp = z.IX
-		z.IX = z.IY
-		fun(z)
-		z.IY = z.IX
-		z.IX = temp
-		z.CycleCounter += CycleCountsDd[opcode]
-	} else {
-		z.PC--
-		z.CycleCounter += CycleCounts[0]
-	}
-}
-
 // ============== get register pairs
 
 func (z *Z80Type) bc() uint16 {
@@ -1039,58 +985,58 @@ func (z *Z80Type) hl() uint16 {
 // ============ helper fn
 
 func (z *Z80Type) incBc() {
-	z.changeBc(+1)
+	z.setBc(z.bc() + 1)
 }
 
 func (z *Z80Type) decBc() {
-	z.changeBc(-1)
-}
-
-func (z *Z80Type) incHl() {
-	z.changeHl(+1)
-}
-
-func (z *Z80Type) decHl() {
-	z.changeHl(-1)
+	z.setBc(z.bc() - 1)
 }
 
 func (z *Z80Type) incDe() {
-	z.changeDe(+1)
+	z.setDe(z.de() + 1)
 }
 
 func (z *Z80Type) decDe() {
-	z.changeDe(-1)
+	z.setDe(z.de() - 1)
 }
 
-func (z *Z80Type) changeDe(val int8) {
-	de := (uint16(z.D) << 8) | uint16(z.E)
-	if val < 0 {
-		de--
-	} else {
-		de++
-	}
-	z.E = byte(de & 0xff)
-	z.D = byte(de >> 8)
+func (z *Z80Type) incHl() {
+	z.setHl(z.hl() + 1)
 }
 
-func (z *Z80Type) changeBc(val int8) {
-	bc := (uint16(z.B) << 8) | uint16(z.C)
-	if val < 0 {
-		bc--
-	} else {
-		bc++
-	}
-	z.C = byte(bc & 0x00ff)
-	z.B = byte(bc >> 8)
+func (z *Z80Type) decHl() {
+	z.setHl(z.hl() - 1)
 }
 
-func (z *Z80Type) changeHl(val int8) {
-	hl := (uint16(z.H) << 8) | uint16(z.L)
-	if val < 0 {
-		hl--
-	} else {
-		hl++
-	}
-	z.L = byte(hl & 0xff)
-	z.H = byte(hl >> 8)
+func (z *Z80Type) setHl(val uint16) {
+	z.L = byte(val & 0xff)
+	z.H = byte(val >> 8)
+}
+
+func (z *Z80Type) setDe(val uint16) {
+	z.E = byte(val & 0xff)
+	z.D = byte(val >> 8)
+}
+
+func (z *Z80Type) setBc(val uint16) {
+	z.C = byte(val & 0xff)
+	z.B = byte(val >> 8)
+}
+
+// incR Increment R at the start of every instruction cycle.
+// The high bit of R is not affected by this increment,
+// it can only be changed using the LD R, A instruction.
+// Note: also a HALT does increment the R register.
+func (z *Z80Type) incR() {
+	z.R = (z.R & 0x80) | (((z.R & 0x7f) + 1) & 0x7f)
+}
+
+// getWord Return 16bit value from memory by specified address
+func (z *Z80Type) getWord(address uint16) uint16 {
+	return (uint16(z.core.MemRead(address+1)) << 8) | uint16(z.core.MemRead(address))
+}
+
+func (z *Z80Type) setWord(address uint16, value uint16) {
+	z.core.MemWrite(address, byte(value))
+	z.core.MemWrite(address+1, byte(value>>8))
 }

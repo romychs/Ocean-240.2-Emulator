@@ -190,7 +190,7 @@ var instructions = []func(s *Z80Type){
 	},
 	// 0x22 : LD (nn), HL
 	0x22: func(s *Z80Type) {
-		addr := s.getAddr()
+		addr := s.nextWord()
 		s.core.MemWrite(addr, s.L)
 		s.core.MemWrite(addr+1, s.H)
 	},
@@ -252,7 +252,7 @@ var instructions = []func(s *Z80Type){
 	},
 	// 0x2a : LD HL, (nn)
 	0x2A: func(s *Z80Type) {
-		addr := s.getAddr()
+		addr := s.nextWord()
 		s.L = s.core.MemRead(addr)
 		s.H = s.core.MemRead(addr + 1)
 	},
@@ -293,7 +293,7 @@ var instructions = []func(s *Z80Type){
 	},
 	// 0x32 : LD (nn), A
 	0x32: func(s *Z80Type) {
-		s.core.MemWrite(s.getAddr(), s.A)
+		s.core.MemWrite(s.nextWord(), s.A)
 	},
 	// 0x33 : INC SP
 	0x33: func(s *Z80Type) {
@@ -329,7 +329,7 @@ var instructions = []func(s *Z80Type){
 	},
 	// 0x3a : LD A, (nn)
 	0x3A: func(s *Z80Type) {
-		s.A = s.core.MemRead(s.getAddr())
+		s.A = s.core.MemRead(s.nextWord())
 	},
 	// 0x3b : DEC SP
 	0x3B: func(s *Z80Type) {
@@ -648,10 +648,10 @@ var instructions = []func(s *Z80Type){
 	},
 }
 
-func (z *Z80Type) getAddr() uint16 {
+func (z *Z80Type) nextWord() uint16 {
 	z.PC++
-	addr := uint16(z.core.MemRead(z.PC))
+	word := uint16(z.core.MemRead(z.PC))
 	z.PC++
-	addr |= uint16(z.core.MemRead(z.PC)) << 8
-	return addr
+	word |= uint16(z.core.MemRead(z.PC)) << 8
+	return word
 }

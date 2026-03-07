@@ -1,7 +1,7 @@
 package z80em
 
 func (z *Z80Type) opcodeCB() {
-	z.R = (z.R & 0x80) | (((z.R & 0x7f) + 1) & 0x7f)
+	z.incR()
 	z.PC++
 	opcode := z.core.M1MemRead(z.PC)
 	bitNumber := (opcode & 0x38) >> 3
@@ -29,28 +29,30 @@ func (z *Z80Type) opcodeCB() {
 		}
 	} else if opcode < 0x80 {
 		// BIT instructions
+		mask := byte(1 << bitNumber)
 		switch regCode {
 		case 0:
-			z.Flags.Z = z.B&(1<<bitNumber) == 0
+			z.Flags.Z = z.B&mask == 0
 		case 1:
-			z.Flags.Z = z.C&(1<<bitNumber) == 0
+			z.Flags.Z = z.C&mask == 0
 		case 2:
-			z.Flags.Z = z.D&(1<<bitNumber) == 0
+			z.Flags.Z = z.D&mask == 0
 		case 3:
-			z.Flags.Z = z.E&(1<<bitNumber) == 0
+			z.Flags.Z = z.E&mask == 0
 		case 4:
-			z.Flags.Z = z.H&(1<<bitNumber) == 0
+			z.Flags.Z = z.H&mask == 0
 		case 5:
-			z.Flags.Z = z.L&(1<<bitNumber) == 0
+			z.Flags.Z = z.L&mask == 0
 		case 6:
-			z.Flags.Z = z.core.MemRead(z.hl())&(1<<bitNumber) == 0
+			z.Flags.Z = z.core.MemRead(z.hl())&mask == 0
 		default:
-			z.Flags.Z = z.A&(1<<bitNumber) == 0
+			z.Flags.Z = z.A&mask == 0
 		}
 		z.Flags.N = false
 		z.Flags.H = true
 		z.Flags.P = z.Flags.Z
 		z.Flags.S = (bitNumber == 7) && !z.Flags.Z
+		// TODO: ZXALL fail this
 		// For the BIT n, (HL) instruction, the X and Y flags are obtained
 		//  from what is apparently an internal temporary register used for
 		//  some of the 16-bit arithmetic instructions.

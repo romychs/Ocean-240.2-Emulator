@@ -2,7 +2,6 @@ package okean240
 
 import (
 	_ "embed"
-	"encoding/binary"
 	"image/color"
 	"okemu/config"
 	"okemu/okean240/fdc"
@@ -10,7 +9,6 @@ import (
 	"okemu/okean240/pit"
 	"okemu/okean240/usart"
 	"okemu/z80em"
-	"os"
 
 	"fyne.io/fyne/v2"
 	log "github.com/sirupsen/logrus"
@@ -54,7 +52,7 @@ type ComputerInterface interface {
 	PutCtrlKey(shortcut fyne.Shortcut)
 	SaveFloppy()
 	LoadFloppy()
-	Dump(start uint16, length uint16)
+	//Dump(start uint16, length uint16)
 }
 
 func (c *ComputerType) M1MemRead(addr uint16) byte {
@@ -97,20 +95,17 @@ func New(cfg *config.OkEmuConfig) *ComputerType {
 	return &c
 }
 
-func (c *ComputerType) Reset(cfg *config.OkEmuConfig) {
+func (c *ComputerType) Reset() {
 	c.cpu.Reset()
 	c.cycles = 0
-	c.vShift = 0
-	c.hShift = 0
-
-	c.memory = Memory{}
-	c.memory.Init(cfg.MonitorFile, cfg.CPMFile)
-
-	c.cycles = 0
-	c.dd17EnableOut = false
-	c.screenWidth = 512
-	c.screenHeight = 256
-	c.vRAM = c.memory.allMemory[3]
+	//c.vShift = 0
+	//c.hShift = 0
+	//c.memory = Memory{}
+	//c.memory.Init(cfg.MonitorFile, cfg.CPMFile)
+	//c.dd17EnableOut = false
+	//c.screenWidth = 256
+	//c.screenHeight = 256
+	//c.vRAM = c.memory.allMemory[3]
 
 }
 
@@ -250,25 +245,25 @@ func (c *ComputerType) SetRamBytes(bytes []byte) {
 	//c.cpu.PC = 0x100
 }
 
-func (c *ComputerType) Dump(start uint16, length uint16) {
-	file, err := os.Create("dump.dat")
-	if err != nil {
-		log.Error(err)
-		return
-	}
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			log.Error(err)
-		}
-	}(file)
-
-	var buffer []byte
-	for addr := 0; addr < 65535; addr++ {
-		buffer = append(buffer, c.memory.MemRead(uint16(addr)))
-	}
-	err = binary.Write(file, binary.LittleEndian, buffer)
-	if err != nil {
-		log.Error("Save memory dump failed:", err)
-	}
-}
+//func (c *ComputerType) Dump(start uint16, length uint16) {
+//	file, err := os.Create("dump.dat")
+//	if err != nil {
+//		log.Error(err)
+//		return
+//	}
+//	defer func(file *os.File) {
+//		err := file.Close()
+//		if err != nil {
+//			log.Error(err)
+//		}
+//	}(file)
+//
+//	var buffer []byte
+//	for addr := 0; addr < 65535; addr++ {
+//		buffer = append(buffer, c.memory.MemRead(uint16(addr)))
+//	}
+//	err = binary.Write(file, binary.LittleEndian, buffer)
+//	if err != nil {
+//		log.Error("Save memory dump failed:", err)
+//	}
+//}

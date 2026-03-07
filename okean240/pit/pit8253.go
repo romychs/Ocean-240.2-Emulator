@@ -39,7 +39,6 @@ type I8253 struct {
 }
 
 type I8253Interface interface {
-	//Init()
 	Configure(value byte)
 	Load(chNo int, value byte)
 	Counter(chNo int) uint16
