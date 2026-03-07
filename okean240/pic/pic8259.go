@@ -11,11 +11,14 @@ import log "github.com/sirupsen/logrus"
 
 type I8259 struct {
 	irr byte
+	csw byte
 }
 
 type I8259Interface interface {
 	SetIRQ(irq byte)
 	IRR() byte
+	CSW() byte
+	SetCSW(val byte)
 }
 
 func (c *I8259) IRR() byte {
@@ -45,6 +48,14 @@ func (c *I8259) SetIRQ(irq byte) {
 	} else {
 		log.Warnf("SetIRQ out of range [0..7]: %d", irq)
 	}
+}
+
+func (c *I8259) CSW() byte {
+	return c.csw
+}
+
+func (c *I8259) SetCSW(val byte) {
+	c.csw = val
 }
 
 func New() *I8259 {

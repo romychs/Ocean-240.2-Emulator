@@ -104,10 +104,10 @@ const RstTimerNo = 4
 //const Rst7Mask = 0x80 // User device 1 interrupt
 
 // PicDd75a Port A (a0=0)
-//const PicDd75a = 0x80
+const PicDd75a = 0x80
 
 // PIC_DD75B Port B (a0=1)
-//const PIC_DD75B = 0x81
+const PicDd75b = 0x81
 
 /*
  * КР580ВВ51 DD72
@@ -143,8 +143,8 @@ const SysDd17ctr = 0xC3
 // LPT_DD67PA Port A - Printer Data
 //const LPT_DD67PA = 0xE0
 
-// VID_DD67PB Port B - Video control [VSU,C/M,FL3:1,COL3:1]
-//const VID_DD67PB = 0xE1
+// VidDd67pb Port B - Video control [VSU,C/M,FL3:1,COL3:1]
+const VidDd67pb = 0xE1
 
 // DD67PC Port C - [USER3:1, STB-LP, BELL, TAPE3:1]
 //const DD67PC = 0xE2

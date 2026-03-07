@@ -15,6 +15,8 @@ func (c *ComputerType) IORead(port uint16) byte {
 	case PicDd75a:
 		// PIO xx59, get IRR register
 		return c.pic.IRR()
+	case PicDd75b:
+		return c.pic.CSW()
 	case UartDd72rr:
 		// USART VV51 CMD
 		return c.usart.Status()
@@ -56,7 +58,7 @@ func (c *ComputerType) IOWrite(port uint16, val byte) {
 		}
 	case SysDd17ctr:
 		c.dd17EnableOut = val == 0x80
-	case VID_DD67PB:
+	case VidDd67pb:
 		if val&VidVsuBit == 0 {
 			// video page 0
 			c.vRAM = c.memory.allMemory[VRAMBlock0]
@@ -96,6 +98,8 @@ func (c *ComputerType) IOWrite(port uint16, val byte) {
 	case UartDd72rd:
 		// USART VV51 Data
 		c.usart.Send(val)
+	case PicDd75b:
+		c.pic.SetCSW(val)
 	case FdcCmd:
 		c.fdc.SetCmd(val)
 	case FdcData:
