@@ -49,7 +49,7 @@ var instructions = []func(s *Z80Type){
 	},
 	// 0x08 : EX AF, AF'
 	0x08: func(s *Z80Type) {
-		s.A, s.APrime = s.APrime, s.A
+		s.A, s.AAlt = s.AAlt, s.A
 		temp := s.getFlagsRegister()
 		s.setFlagsRegister(s.getFlagsPrimeRegister())
 		s.setFlagsPrimeRegister(temp)
@@ -468,12 +468,12 @@ var instructions = []func(s *Z80Type){
 	},
 	// 0xd9 : EXX
 	0xD9: func(s *Z80Type) {
-		s.B, s.BPrime = s.BPrime, s.B
-		s.C, s.CPrime = s.CPrime, s.C
-		s.D, s.DPrime = s.DPrime, s.D
-		s.E, s.EPrime = s.EPrime, s.E
-		s.H, s.HPrime = s.HPrime, s.H
-		s.L, s.LPrime = s.LPrime, s.L
+		s.B, s.BAlt = s.BAlt, s.B
+		s.C, s.CAlt = s.CAlt, s.C
+		s.D, s.DAlt = s.DAlt, s.D
+		s.E, s.EAlt = s.EAlt, s.E
+		s.H, s.HAlt = s.HAlt, s.H
+		s.L, s.LAlt = s.LAlt, s.L
 	},
 	// 0xda : JP C, nn
 	0xDA: func(s *Z80Type) {

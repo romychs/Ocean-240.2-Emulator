@@ -19,9 +19,9 @@ import (
 // Floppy parameters
 const (
 	FloppySizeK    = 720
-	SectorSize     = 128
+	SectorSize     = 512
 	SideCount      = 2
-	SectorPerTrack = 36
+	SectorPerTrack = 9
 
 	SizeInSectors  = FloppySizeK * 1024 / SectorSize
 	TracksCount    = SizeInSectors / SideCount / SectorPerTrack
@@ -30,7 +30,7 @@ const (
 	TrackHeaderSize = 146
 	TrackSectorSize = 626
 	TrackFooterSize = 256 * 3
-	TrackBufferSize = TrackHeaderSize + TrackSectorSize*9 + TrackFooterSize
+	TrackBufferSize = TrackHeaderSize + TrackSectorSize*SectorPerTrack + TrackFooterSize
 )
 
 // FDC Commands
@@ -325,7 +325,7 @@ func New() *FloppyDriveController {
 	sec := [SizeInSectors]SectorType{}
 	for i := 0; i < SizeInSectors; i++ {
 		sec[i] = make([]byte, SectorSize)
-		for s := 0; s < 128; s++ {
+		for s := 0; s < SectorSize; s++ {
 			sec[i][s] = 0xE5
 		}
 	}

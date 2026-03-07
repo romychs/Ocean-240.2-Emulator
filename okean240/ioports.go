@@ -72,7 +72,7 @@ func (c *ComputerType) IOWrite(port uint16, val byte) {
 			c.screenWidth = 512
 		}
 		c.palette = val & 0x07
-		c.bgColor = val & 0x38 >> 3
+		c.bgColor = (val >> 3) & 0x07
 	case SYS_DD17PA:
 		c.vShift = val
 	case SYS_DD17PC:

@@ -23,7 +23,7 @@ var BuildTime = "2026-03-01"
 //go:embed hex/format.hex
 var serialBytes []byte
 
-//go:embed bin/MB.COM
+//go:embed bin/zexall.com
 var ramBytes []byte
 
 var needReset = false
@@ -45,11 +45,12 @@ func main() {
 
 	computer := okean240.New(conf)
 	computer.SetSerialBytes(serialBytes)
+	computer.LoadFloppy()
 
 	w, raster, label := mainWindow(computer, conf)
 
-	go emulator(computer, raster, label, conf)
-
+	go emulator(computer)
+	go screen(computer, raster, label, conf)
 	(*w).ShowAndRun()
 }
 
@@ -88,6 +89,12 @@ func mainWindow(computer *okean240.ComputerType, emuConfig *config.OkEmuConfig) 
 	w.Resize(fyne.NewSize(600, 600))
 
 	hBox := container.NewHBox(
+		//widget.NewButton("++", func() {
+		//	computer.IncOffset()
+		//}),
+		//widget.NewButton("--", func() {
+		//	computer.DecOffset()
+		//}),
 		widget.NewButton("Ctrl+C", func() {
 			computer.PutCtrlKey(0x03)
 		}),
@@ -124,24 +131,37 @@ func mainWindow(computer *okean240.ComputerType, emuConfig *config.OkEmuConfig) 
 	return &w, raster, label
 }
 
-func emulator(computer *okean240.ComputerType, raster *canvas.Raster, label *widget.Label, emuConfig *config.OkEmuConfig) {
-	ticker := time.NewTicker(133 * time.Nanosecond)
-	var ticks = 0
-	var ticksCPU = 3
-	//var ticksSCR = TicksPerFrame
-	//var frameStartTime = time.Now().UnixMicro()
-	frameNextTime := time.Now().UnixMicro() + 20000
+func screen(computer *okean240.ComputerType, raster *canvas.Raster, label *widget.Label, emuConfig *config.OkEmuConfig) {
+	ticker := time.NewTicker(20 * time.Millisecond)
 	frame := 0
 	var pre uint64 = 0
 	var freq uint64 = 0
 
-	nextSecond := time.Now().Add(time.Second).UnixMicro()
-	//curScrWidth := 256
 	for range ticker.C {
 		if needReset {
 			computer.Reset(emuConfig)
 			needReset = false
 		}
+		frame++
+		// redraw screen here
+		fyne.Do(func() {
+			// status for every 50 frames
+			if frame%50 == 0 {
+				freq = computer.Cycles() - pre
+				pre = computer.Cycles()
+				label.SetText(fmt.Sprintf("Screen size: %dx%d  F: %d", computer.ScreenWidth(), computer.ScreenHeight(), freq))
+			}
+			raster.Refresh()
+		})
+	}
+}
+
+func emulator(computer *okean240.ComputerType) {
+	ticker := time.NewTicker(133 * time.Nanosecond)
+	var ticks = 0
+	var ticksCPU = 0
+	for range ticker.C {
+		time.Sleep(133 * time.Nanosecond)
 		ticks++
 		if ticks%5 == 0 {
 			// 1.5 MHz
@@ -150,37 +170,10 @@ func emulator(computer *okean240.ComputerType, raster *canvas.Raster, label *wid
 		if ticks > ticksCPU {
 			ticksCPU = ticks + computer.Do()*2
 		}
-
-		if time.Now().UnixMicro() > nextSecond {
-			nextSecond = time.Now().Add(time.Second).UnixMicro()
-			freq = computer.Cycles() - pre
-			pre = computer.Cycles()
-		}
-
-		//if ticks >= ticksSCR {
-		if time.Now().UnixMicro() > frameNextTime {
-			frameNextTime = time.Now().UnixMicro() + 20000
-			//ticksSCR = ticks + TicksPerFrame
-			frame++
-			// redraw screen here
-			fyne.Do(func() {
-				// check for screen mode changed
-				//if computer.ScreenWidth() != curScrWidth {
-				//	curScrWidth = computer.ScreenWidth()
-				//	newSize := fyne.NewSize(float32(curScrWidth*2), float32(computer.ScreenHeight()*2))
-				//	raster.SetMinSize(newSize)
-				//	raster.Resize(newSize)
-				//}
-				// status for every 25 frames
-				if frame%50 == 0 {
-					label.SetText(fmt.Sprintf("Screen size: %dx%d  F: %d", computer.ScreenWidth(), computer.ScreenHeight(), freq))
-				}
-				raster.Refresh()
-			})
-		}
 	}
 }
 
+// Add shortcuts for all Ctrl+<Letter>
 func addShortcuts(c fyne.Canvas, computer *okean240.ComputerType) {
 	// Add shortcuts for Ctrl+A to Ctrl+Z
 	for kName := 'A'; kName <= 'Z'; kName++ {

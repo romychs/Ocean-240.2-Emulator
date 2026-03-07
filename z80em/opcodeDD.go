@@ -415,30 +415,29 @@ func (z *Z80Type) opcodeDD() {
 }
 
 func (z *Z80Type) opcodeDDCB() {
+
 	offset := z.getOffset(z.IX)
 	z.PC++
 
-	opcode := z.core.M1MemRead(z.PC)
+	opcode := z.core.MemRead(z.PC)
+
 	value := byte(0)
 	bitTestOp := false
+
 	// As with the "normal" CB prefix, we implement the DDCB prefix
 	//  by decoding the opcode directly, rather than using a table.
 	if opcode < 0x40 {
 		// Shift and rotate instructions.
-
 		ddcbFunctions := []OpShift{z.doRlc, z.doRrc, z.doRl, z.doRr, z.doSla, z.doSra, z.doSll, z.doSrl}
-
 		// Most of the opcodes in this range are not valid,
 		//  so we map this opcode onto one of the ones that is.
-
 		fun := ddcbFunctions[(opcode&0x38)>>3]
 		value = fun(z.core.MemRead(offset))
 		z.core.MemWrite(offset, value)
 	} else {
 		bitNumber := (opcode & 0x38) >> 3
-
 		if opcode < 0x80 {
-			// BIT
+			// bit test
 			bitTestOp = true
 			z.Flags.N = false
 			z.Flags.H = true
@@ -447,19 +446,20 @@ func (z *Z80Type) opcodeDDCB() {
 			z.Flags.S = (bitNumber == 7) && !z.Flags.Z
 		} else if opcode < 0xc0 {
 			// RES
-			value = z.core.MemRead(offset) & ^(1 << bitNumber)
+			value = z.core.MemRead(offset) & (^(1 << bitNumber))
 			z.core.MemWrite(offset, value)
 		} else {
 			// SET
-			value = z.core.MemRead(offset | (1 << bitNumber))
+			value = z.core.MemRead(offset) | (1 << bitNumber)
 			z.core.MemWrite(offset, value)
 		}
 	}
 
 	// This implements the undocumented shift, RES, and SET opcodes,
 	//  which write their result to memory and also to an 8080 register.
+
 	if !bitTestOp {
-		value := byte(1)
+		//value := byte(1)
 		switch opcode & 0x07 {
 		case 0:
 			z.B = value

@@ -18,29 +18,28 @@ type FlagsType struct {
 
 // Z80Type - Processor state
 type Z80Type struct {
-	A          byte
-	B          byte
-	C          byte
-	D          byte
-	E          byte
-	H          byte
-	L          byte
-	APrime     byte
-	BPrime     byte
-	CPrime     byte
-	DPrime     byte
-	EPrime     byte
-	HPrime     byte
-	LPrime     byte
-	IX         uint16
-	IY         uint16
-	I          byte
-	R          byte
-	SP         uint16
-	PC         uint16
-	Flags      FlagsType
-	FlagsPrime FlagsType
-
+	A                 byte
+	B                 byte
+	C                 byte
+	D                 byte
+	E                 byte
+	H                 byte
+	L                 byte
+	AAlt              byte
+	BAlt              byte
+	CAlt              byte
+	DAlt              byte
+	EAlt              byte
+	HAlt              byte
+	LAlt              byte
+	IX                uint16
+	IY                uint16
+	I                 byte
+	R                 byte
+	SP                uint16
+	PC                uint16
+	Flags             FlagsType
+	FlagsAlt          FlagsType
 	IMode             byte
 	Iff1              byte
 	Iff2              byte
@@ -106,19 +105,19 @@ func (z *Z80Type) GetState() *Z80Type {
 		E:            z.E,
 		H:            z.H,
 		L:            z.L,
-		APrime:       z.APrime,
-		BPrime:       z.BPrime,
-		CPrime:       z.CPrime,
-		DPrime:       z.DPrime,
-		EPrime:       z.EPrime,
-		HPrime:       z.HPrime,
+		AAlt:         z.AAlt,
+		BAlt:         z.BAlt,
+		CAlt:         z.CAlt,
+		DAlt:         z.DAlt,
+		EAlt:         z.EAlt,
+		HAlt:         z.HAlt,
 		IX:           z.IX,
 		IY:           z.IY,
 		R:            z.R,
 		SP:           z.SP,
 		PC:           z.PC,
 		Flags:        z.Flags,
-		FlagsPrime:   z.FlagsPrime,
+		FlagsAlt:     z.FlagsAlt,
 		IMode:        z.IMode,
 		Iff1:         z.Iff1,
 		Iff2:         z.Iff2,
@@ -137,12 +136,12 @@ func (z *Z80Type) SetState(state *Z80Type) {
 	z.E = state.E
 	z.H = state.H
 	z.L = state.L
-	z.APrime = state.APrime
-	z.BPrime = state.BPrime
-	z.CPrime = state.CPrime
-	z.DPrime = state.DPrime
-	z.EPrime = state.EPrime
-	z.HPrime = state.HPrime
+	z.AAlt = state.AAlt
+	z.BAlt = state.BAlt
+	z.CAlt = state.CAlt
+	z.DAlt = state.DAlt
+	z.EAlt = state.EAlt
+	z.HAlt = state.HAlt
 	z.IX = state.IX
 	z.IY = state.IY
 	z.I = state.I
@@ -150,7 +149,7 @@ func (z *Z80Type) SetState(state *Z80Type) {
 	z.SP = state.SP
 	z.PC = state.PC
 	z.Flags = state.Flags
-	z.FlagsPrime = state.FlagsPrime
+	z.FlagsAlt = state.FlagsAlt
 	z.IMode = state.IMode
 	z.Iff1 = state.Iff1
 	z.Iff2 = state.Iff2
@@ -163,28 +162,28 @@ func (z *Z80Type) SetState(state *Z80Type) {
 // New Create new
 func New(memIoRW MemIoRW) *Z80Type {
 	return &Z80Type{
-		A:      0,
-		B:      0,
-		C:      0,
-		D:      0,
-		E:      0,
-		H:      0,
-		L:      0,
-		APrime: 0,
-		BPrime: 0,
-		CPrime: 0,
-		DPrime: 0,
-		EPrime: 0,
-		HPrime: 0,
-		IX:     0,
-		IY:     0,
-		I:      0,
+		A:    0,
+		B:    0,
+		C:    0,
+		D:    0,
+		E:    0,
+		H:    0,
+		L:    0,
+		AAlt: 0,
+		BAlt: 0,
+		CAlt: 0,
+		DAlt: 0,
+		EAlt: 0,
+		HAlt: 0,
+		IX:   0,
+		IY:   0,
+		I:    0,
 
 		R:                 0,
 		SP:                SpDefault,
 		PC:                0,
 		Flags:             FlagsType{false, false, false, false, false, false, false, false},
-		FlagsPrime:        FlagsType{false, false, false, false, false, false, false, false},
+		FlagsAlt:          FlagsType{false, false, false, false, false, false, false, false},
 		IMode:             0,
 		Iff1:              0,
 		Iff2:              0,
@@ -355,20 +354,14 @@ func (z *Z80Type) decodeInstruction(opcode byte) {
 	if opcode == OpHalt {
 		z.Halted = true
 	} else if opcode >= OpLdBB && opcode < OpAddAB {
-		// This entire range is all 8-bit register loads.
-		// Get the operand and assign it to the correct destination.
+		// 8-bit register loads.
 		z.load8bit(opcode, z.getOperand(opcode))
 	} else if (opcode >= OpAddAB) && (opcode < OpRetNz) {
-		// These are the 8-bit register ALU instructions.
-		// We'll get the operand and then use this "jump table"
-		// to call the correct utility function for the instruction.
+		// 8-bit register ALU instructions.
 		z.alu8bit(opcode, z.getOperand(opcode))
 	} else {
-		// This is one of the less formulaic instructions;
-		//  we'll get the specific function for it from our array.
 		fun := instructions[opcode]
 		fun(z)
-		//z.otherInstructions(opcode)
 	}
 	z.CycleCounter += CycleCounts[opcode]
 }
@@ -394,6 +387,7 @@ func (z *Z80Type) load8bit(opcode byte, operand byte) {
 	}
 }
 
+// alu8bit Handle ALU Operations, ADD, ADC SUB, SBC, AND, XOR, OR
 func (z *Z80Type) alu8bit(opcode byte, operand byte) {
 	switch (opcode & 0x38) >> 3 {
 	case 0:
@@ -426,7 +420,7 @@ func (z *Z80Type) getFlagsRegister() byte {
 
 // getFlagsRegister return whole F' register
 func (z *Z80Type) getFlagsPrimeRegister() byte {
-	return getFlags(&z.FlagsPrime)
+	return getFlags(&z.FlagsAlt)
 }
 
 func getFlags(f *FlagsType) byte {
@@ -437,27 +431,21 @@ func getFlags(f *FlagsType) byte {
 	if f.Z {
 		flags |= 0x40
 	}
-
 	if f.Y {
 		flags |= 0x20
 	}
-
 	if f.H {
 		flags |= 0x10
 	}
-
 	if f.X {
 		flags |= 0x08
 	}
-
 	if f.P {
 		flags |= 0x04
 	}
-
 	if f.N {
 		flags |= 0x02
 	}
-
 	if f.C {
 		flags |= 0x01
 	}
@@ -470,7 +458,7 @@ func (z *Z80Type) setFlagsRegister(flags byte) {
 }
 
 func (z *Z80Type) setFlagsPrimeRegister(flags byte) {
-	setFlags(flags, &z.FlagsPrime)
+	setFlags(flags, &z.FlagsAlt)
 }
 
 func setFlags(flags byte, f *FlagsType) {
@@ -484,15 +472,10 @@ func setFlags(flags byte, f *FlagsType) {
 	f.C = flags&0x01 != 0
 }
 
+// updateXYFlags Set flags X and Y based on result bits
 func (z *Z80Type) updateXYFlags(result byte) {
-	// Most of the time, the undocumented flags
-	//  (sometimes called X and Y, or 3 and 5),
-	//  take their values from the corresponding bits
-	//  of the result of the instruction,
-	//  or from some other related value.
-	// This is a utility function to set those flags based on those bits.
-	z.Flags.Y = (result&0x20)>>5 != 0
-	z.Flags.X = (result&0x08)>>3 != 0
+	z.Flags.Y = result&0x20 != 0
+	z.Flags.X = result&0x08 != 0
 }
 
 func getParity(value byte) bool {
@@ -577,62 +560,84 @@ func (z *Z80Type) doReset(address uint16) {
 	z.PC = address - 1
 }
 
-func (z *Z80Type) setBaseFlags(operand byte, result uint16) {
-	z.Flags.C = result > 0x00ff
-	z.Flags.S = result&0x80 != 0
-	z.Flags.Z = result&0xff == 0
-	z.Flags.H = (((operand & 0x0f) + (z.A & 0x0f)) & 0x10) != 0
-	// An overflow has happened if the sign bits of the accumulator and the operand
-	//  don't match the sign bit of the result value.
-	z.Flags.P = ((z.A & 0x80) == (operand & 0x80)) && (z.A&0x80 != byte(result&0x80))
-}
+//func (z *Z80Type) setBaseFlags(operand byte, result uint16) {
+//	z.Flags.S = result&0x80 != 0
+//	z.Flags.Z = result&0x00ff == 0
+//	z.Flags.H = (((operand & 0x0f) + (z.A & 0x0f)) & 0x10) != 0
+//	// An overflow has happened if the sign bits of the accumulator and the operand
+//	// don't match the sign bit of the result value.
+//	z.Flags.P = ((z.A & 0x80) == (operand & 0x80)) && (z.A&0x80 != byte(result&0x80))
+//	z.Flags.C = result&0x0100 != 0
+//}
 
+// doAdd Handle ADD A, [operand] instructions.
 func (z *Z80Type) doAdd(operand byte) {
-	// This is the ADD A, [operand] instructions.
-	// We'll do the literal addition, which includes any overflow,
-	//  so that we can more easily figure out whether we had
-	//  an overflow or a carry and set the flags accordingly.
 	var result = uint16(z.A) + uint16(operand)
-	z.A = byte(result & 0xff)
-	z.setBaseFlags(operand, result)
+
+	z.Flags.S = result&0x80 != 0
+	z.Flags.Z = result&0x00ff == 0
+	z.Flags.H = (((operand & 0x0f) + (z.A & 0x0f)) & 0x10) != 0
+	z.Flags.P = ((z.A & 0x80) == (operand & 0x80)) && (z.A&0x80 != byte(result&0x80))
 	z.Flags.N = false
+	z.Flags.C = result&0x0100 != 0
+
+	z.A = byte(result & 0xff)
 	z.updateXYFlags(z.A)
 }
 
 func (z *Z80Type) doAdc(operand byte) {
-	var result = uint16(z.A) + uint16(operand)
+	add := byte(0)
 	if z.Flags.C {
-		result++
+		add = 1
 	}
-	z.A = byte(result & 0xff)
-	z.setBaseFlags(operand, result)
+	var result = uint16(z.A) + uint16(operand) + uint16(add)
+
+	z.Flags.S = result&0x80 != 0
+	z.Flags.Z = result&0x00ff == 0
+	z.Flags.H = (((operand & 0x0f) + (z.A & 0x0f) + add) & 0x10) != 0
+	z.Flags.P = ((z.A & 0x80) == (operand & 0x80)) && (z.A&0x80 != byte(result&0x80))
 	z.Flags.N = false
+	z.Flags.C = result&0x0100 != 0
+
+	z.A = byte(result & 0xff)
 	z.updateXYFlags(z.A)
 }
 
 func (z *Z80Type) doSub(operand byte) {
 	var result = uint16(z.A) - uint16(operand)
-	z.A = byte(result & 0xff)
-	z.setBaseFlags(operand, result)
+
+	z.Flags.S = result&0x80 != 0
+	z.Flags.Z = result&0x00ff == 0
+	z.Flags.H = (((z.A & 0x0f) - (operand & 0x0f)) & 0x10) != 0
+	z.Flags.P = ((z.A & 0x80) != (operand & 0x80)) && ((z.A & 0x80) != byte(result&0x80))
 	z.Flags.N = true
+	z.Flags.C = result&0x0100 != 0
+
+	z.A = byte(result & 0xff)
 	z.updateXYFlags(z.A)
 }
 
 func (z *Z80Type) doSbc(operand byte) {
-	var result = uint16(z.A) - uint16(operand)
+	sub := byte(0)
 	if z.Flags.C {
-		result--
+		sub = 1
 	}
-	z.A = byte(result & 0xff)
-	z.setBaseFlags(operand, result)
+	var result = uint16(z.A) - uint16(operand) - uint16(sub)
+
+	z.Flags.S = result&0x80 != 0
+	z.Flags.Z = result&0x00ff == 0
+	z.Flags.H = (((z.A & 0x0f) - (operand & 0x0f) - sub) & 0x10) != 0
+	z.Flags.P = ((z.A & 0x80) != (operand & 0x80)) && (z.A&0x80 != byte(result&0x80))
 	z.Flags.N = true
+	z.Flags.C = result&0x0100 != 0
+
+	z.A = byte(result & 0xff)
 	z.updateXYFlags(z.A)
 }
 
 func (z *Z80Type) setLogicFlags() {
 	z.Flags.S = z.A&0x80 != 0
 	z.Flags.Z = z.A == 0
-	z.Flags.H = true
 	z.Flags.P = ParityBits[z.A]
 	z.Flags.N = false
 	z.Flags.C = false
@@ -641,18 +646,21 @@ func (z *Z80Type) setLogicFlags() {
 func (z *Z80Type) doAnd(operand byte) {
 	z.A &= operand
 	z.setLogicFlags()
+	z.Flags.H = true
 	z.updateXYFlags(z.A)
 }
 
 func (z *Z80Type) doXor(operand byte) {
 	z.A ^= operand
 	z.setLogicFlags()
+	z.Flags.H = false
 	z.updateXYFlags(z.A)
 }
 
 func (z *Z80Type) doOr(operand byte) {
 	z.A |= operand
 	z.setLogicFlags()
+	z.Flags.H = false
 	z.updateXYFlags(z.A)
 }
 
@@ -666,12 +674,13 @@ func (z *Z80Type) doCp(operand byte) {
 func (z *Z80Type) doInc(operand byte) byte {
 	var result = uint16(operand) + 1
 	r8 := byte(result & 0xff)
-	z.Flags.S = r8&0x80 > 0
+
+	z.Flags.S = r8&0x80 != 0
 	z.Flags.Z = r8 == 0
 	z.Flags.H = (operand & 0x0f) == 0x0f
-	// It'z a good deal easier to detect overflow for an increment/decrement.
 	z.Flags.P = operand == 0x7f
 	z.Flags.N = false
+
 	z.updateXYFlags(r8)
 	return r8
 }
@@ -679,11 +688,13 @@ func (z *Z80Type) doInc(operand byte) byte {
 func (z *Z80Type) doDec(operand byte) byte {
 	var result = uint16(operand) - 1
 	r8 := byte(result & 0xff)
-	z.Flags.S = r8&0x80 > 0
+
+	z.Flags.S = r8&0x80 != 0
 	z.Flags.Z = r8 == 0
 	z.Flags.H = (operand & 0x0f) == 0x00
 	z.Flags.P = operand == 0x80
 	z.Flags.N = true
+
 	z.updateXYFlags(r8)
 	return r8
 }
@@ -1051,17 +1062,6 @@ func (z *Z80Type) decDe() {
 	z.changeDe(-1)
 }
 
-func (z *Z80Type) changeHl(val int8) {
-	hl := (uint16(z.H) << 8) | uint16(z.L)
-	if val < 0 {
-		hl--
-	} else {
-		hl++
-	}
-	z.L = byte(hl & 0xff)
-	z.H = byte((hl & 0xff00) >> 8)
-}
-
 func (z *Z80Type) changeDe(val int8) {
 	de := (uint16(z.D) << 8) | uint16(z.E)
 	if val < 0 {
@@ -1070,7 +1070,7 @@ func (z *Z80Type) changeDe(val int8) {
 		de++
 	}
 	z.E = byte(de & 0xff)
-	z.D = byte((de & 0xff00) >> 8)
+	z.D = byte(de >> 8)
 }
 
 func (z *Z80Type) changeBc(val int8) {
@@ -1081,5 +1081,16 @@ func (z *Z80Type) changeBc(val int8) {
 		bc++
 	}
 	z.C = byte(bc & 0x00ff)
-	z.B = byte((bc & 0xff00) >> 8)
+	z.B = byte(bc >> 8)
+}
+
+func (z *Z80Type) changeHl(val int8) {
+	hl := (uint16(z.H) << 8) | uint16(z.L)
+	if val < 0 {
+		hl--
+	} else {
+		hl++
+	}
+	z.L = byte(hl & 0xff)
+	z.H = byte(hl >> 8)
 }

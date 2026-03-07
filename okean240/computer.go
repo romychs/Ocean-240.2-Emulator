@@ -35,6 +35,7 @@ type ComputerType struct {
 	kbdBuffer     []byte
 	vShift        byte
 	hShift        byte
+	//aOffset       uint16
 }
 
 const VRAMBlock0 = 3
@@ -86,6 +87,7 @@ func New(cfg *config.OkEmuConfig) *ComputerType {
 
 	c.vShift = 0
 	c.hShift = 0
+	//c.aOffset = 0x100
 
 	c.pit = pit.New()
 	c.usart = usart.New()
@@ -119,9 +121,9 @@ func (c *ComputerType) Do() int {
 	//}
 	ticks := uint64(c.cpu.RunInstruction())
 	c.cycles += ticks
-	if c.cpu.PC == 0xFF26 {
-		log.Debugf("%4X: H:%X L:%X A:%X B: %X C: %X D: %X E: %X", c.cpu.PC, c.cpu.H, c.cpu.L, c.cpu.A, c.cpu.B, c.cpu.C, c.cpu.D, c.cpu.E)
-	}
+	//if c.cpu.PC == 0xFF26 {
+	//	log.Debugf("%4X: H:%X L:%X A:%X B: %X C: %X D: %X E: %X", c.cpu.PC, c.cpu.H, c.cpu.L, c.cpu.A, c.cpu.B, c.cpu.C, c.cpu.D, c.cpu.E)
+	//}
 	return int(ticks)
 }
 
@@ -138,17 +140,20 @@ func (c *ComputerType) GetPixel(x uint16, y uint16) color.RGBA {
 			return CWhite
 		}
 
+		var offset uint16
+		if (c.vShift != 0) && (y > 255-uint16(c.vShift)) {
+			offset = 0x100
+		} else {
+			offset = 0
+		}
 		y += uint16(c.vShift) & 0x00ff
 		x += uint16(c.hShift-7) & 0x00ff
 
 		// Color 256x256 mode
 		addr = ((x & 0xf8) << 6) | y
-		//if c.vShift != 0 {
-		//	addr -= 8
-		//}
 
-		cl := (c.vRAM.memory[addr&0x3fff] >> (x & 0x07)) & 1
-		cl |= ((c.vRAM.memory[(addr+0x100)&0x3fff] >> (x & 0x07)) & 1) << 1
+		cl := (c.vRAM.memory[(addr-offset)&0x3fff] >> (x & 0x07)) & 1
+		cl |= ((c.vRAM.memory[(addr+0x100-offset)&0x3fff] >> (x & 0x07)) & 1) << 1
 		if cl == 0 {
 			resColor = BgColorPalette[c.bgColor]
 		} else {
@@ -159,13 +164,20 @@ func (c *ComputerType) GetPixel(x uint16, y uint16) color.RGBA {
 			return CWhite
 		}
 
+		var offset uint16
+		if (c.vShift != 0) && (y > 255-uint16(c.vShift)) {
+			offset = 0x100
+		} else {
+			offset = 0
+		}
+
 		// Shifts
 		y += uint16(c.vShift) & 0x00ff
 		x += uint16(c.hShift-7) & 0x001ff
 
 		// Mono 512x256 mode
-		addr = ((x & 0x1f8) << 5) | y
-		pix := c.vRAM.memory[addr] >> (x & 0x07) & 1
+		addr = (((x & 0x1f8) << 5) + y) - offset
+		pix := c.vRAM.memory[addr&0x3fff] >> (x & 0x07) & 1
 		if c.palette == 6 {
 			if pix == 0 {
 				resColor = CBlack
@@ -176,7 +188,7 @@ func (c *ComputerType) GetPixel(x uint16, y uint16) color.RGBA {
 			if pix == 0 {
 				resColor = BgColorPalette[c.bgColor]
 			} else {
-				resColor = MonoPalette[c.bgColor]
+				resColor = MonoPalette[c.palette]
 			}
 		}
 	}
