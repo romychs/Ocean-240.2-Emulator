@@ -152,12 +152,12 @@ func screen(computer *okean240.ComputerType, raster *canvas.Raster, label *widge
 	}
 }
 
-const ticksPerTicker = 3
+const ticksPerTicker uint64 = 3
 
 func emulator(computer *okean240.ComputerType) {
 	ticker := time.NewTicker(66 * time.Nanosecond)
-	var ticks = 0
-	var nextClock = ticks + ticksPerTicker
+	var ticks uint64 = 0
+	var nextClock uint64 = ticks + ticksPerTicker
 	//var ticksCPU = 3
 	for range ticker.C {
 		//for {

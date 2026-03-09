@@ -8,14 +8,14 @@ import (
 	"okemu/okean240/pic"
 	"okemu/okean240/pit"
 	"okemu/okean240/usart"
-	"okemu/z80em"
+	"okemu/z80/js"
 
 	"fyne.io/fyne/v2"
 	log "github.com/sirupsen/logrus"
 )
 
 type ComputerType struct {
-	cpu           *z80em.Z80Type
+	cpu           *js.Z80
 	memory        Memory
 	ioPorts       [256]byte
 	cycles        uint64
@@ -73,7 +73,7 @@ func New(cfg *config.OkEmuConfig) *ComputerType {
 	c.memory = Memory{}
 	c.memory.Init(cfg.MonitorFile, cfg.CPMFile)
 
-	c.cpu = z80em.New(&c)
+	c.cpu = js.New(&c)
 
 	c.cycles = 0
 	c.dd17EnableOut = false
@@ -109,17 +109,17 @@ func (c *ComputerType) Reset() {
 
 }
 
-func (c *ComputerType) Do() int {
+func (c *ComputerType) Do() uint64 {
 	//s := c.cpu.GetState()
 	//if s.PC == 0xe0db {
 	//	log.Debugf("breakpoint")
 	//}
-	ticks := uint64(c.cpu.RunInstruction())
+	ticks := c.cpu.RunInstruction()
 	c.cycles += ticks
 	//if c.cpu.PC == 0xFF26 {
 	//	log.Debugf("%4X: H:%X L:%X A:%X B: %X C: %X D: %X E: %X", c.cpu.PC, c.cpu.H, c.cpu.L, c.cpu.A, c.cpu.B, c.cpu.C, c.cpu.D, c.cpu.E)
 	//}
-	return int(ticks)
+	return ticks
 }
 
 func (c *ComputerType) GetPixel(x uint16, y uint16) color.RGBA {

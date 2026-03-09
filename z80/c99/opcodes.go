@@ -1,4 +1,4 @@
-package z80
+package c99
 
 import log "github.com/sirupsen/logrus"
 

@@ -1,4 +1,4 @@
-package z80em
+package js
 
 const OpHalt = 0x76
 const OpLdBB = 0x40

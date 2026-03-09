@@ -1,4 +1,4 @@
-package z80
+package c99
 
 import log "github.com/sirupsen/logrus"
 
@@ -155,7 +155,7 @@ func (z *Z80) updateXY(result byte) {
 	z.xf = result&0x08 != 0
 }
 
-func (z *Z80) debug_output() {
+func (z *Z80) debugOutput() {
 	log.Debugf("PC: %04X, AF: %04X, BC: %04X, DE: %04X, HL: %04X, SP: %04X, IX: %04X, IY: %04X, I: %02X, R: %02X",
 		z.pc, (uint16(z.a)<<8)|uint16(z.get_f()), z.get_bc(), z.get_de(), z.get_hl(), z.sp,
 		z.ix, z.iy, z.i, z.r)

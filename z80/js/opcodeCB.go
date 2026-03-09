@@ -1,6 +1,6 @@
-package z80em
+package js
 
-func (z *Z80Type) opcodeCB() {
+func (z *Z80) opcodeCB() {
 	z.incR()
 	z.PC++
 	opcode := z.core.M1MemRead(z.PC)

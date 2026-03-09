@@ -1,4 +1,4 @@
-package z80
+package c99
 
 // executes a DD/FD opcode (IZ = IX or IY)
 func (z *Z80) exec_opcode_ddfd(opcode byte, iz *uint16) {
