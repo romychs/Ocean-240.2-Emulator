@@ -1,19 +1,17 @@
+// Package usart
+// Universal Serial Asynchronous Receiver/Transmitter
+// i8051, MSM82C51, КР580ВВ51
+// By Romych, 2025.03.04
 package usart
 
 import log "github.com/sirupsen/logrus"
 
-/**
-Universal Serial Asynchronous Receiver/Transmitter
-i8051, MSM82C51, КР580ВВ51
+//const I8251DSRFlag = 0x80
+//const I8251SynDetFlag = 0x40
+//const I8251FrameErrorFlag = 0x20
+//const I8251OverrunErrorFlag = 0x10
+//const I8251ParityErrorFlag = 0x08
 
-By Romych, 2025.03.04
-*/
-
-const I8251DSRFlag = 0x80
-const I8251SynDetFlag = 0x40
-const I8251FrameErrorFlag = 0x20
-const I8251OverrunErrorFlag = 0x10
-const I8251ParityErrorFlag = 0x08
 const I8251TxEnableFlag = 0x04
 const I8251RxReadyFlag = 0x02
 const I8251TxReadyFlag = 0x01
@@ -131,20 +129,22 @@ func (s *I8251) Command(value byte) {
 func (s *I8251) Send(value byte) {
 	if s.txe {
 		s.bufferTx = append(s.bufferTx, value)
+		log.Debugf("Send byte: %x", value)
 	}
 }
 
 func (s *I8251) Receive() byte {
-
 	if s.rxe {
 		if len(s.bufferRx) > 0 {
 			res := s.bufferRx[0]
 			s.bufferRx = s.bufferRx[1:]
-			log.Debugf("ReceiveByte: %x", res)
+			log.Debugf("Receive: %x", res)
 			return res
 		}
+		log.Debugf("Receive: empty buffer")
+	} else {
+		log.Debugf("Receive: receiver disabled")
 	}
-	log.Debugf("ReceiveByte: empty buffer")
 	return 0
 }
 

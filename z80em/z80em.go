@@ -2,7 +2,7 @@ package z80em
 
 import "fmt"
 
-const SpDefault uint16 = 0xdff0
+//const SpDefault uint16 = 0xffff
 
 // FlagsType - Processor flags
 type FlagsType struct {
@@ -78,9 +78,9 @@ type CPUInterface interface {
 func (z *Z80Type) Reset() {
 	z.A = 0
 	z.R = 0
-	z.SP = SpDefault
+	z.SP = 0xff
 	z.PC = 0
-	z.setFlagsRegister(0)
+	z.setFlagsRegister(0xff)
 	// Interrupts disabled
 	z.IMode = 0
 	z.Iff1 = 0
@@ -180,10 +180,10 @@ func New(memIoRW MemIoRW) *Z80Type {
 		I:    0,
 
 		R:                 0,
-		SP:                SpDefault,
+		SP:                0xffff,
 		PC:                0,
-		Flags:             FlagsType{false, false, false, false, false, false, false, false},
-		FlagsAlt:          FlagsType{false, false, false, false, false, false, false, false},
+		Flags:             FlagsType{true, true, true, true, true, true, true, true},
+		FlagsAlt:          FlagsType{true, true, true, true, true, true, true, true},
 		IMode:             0,
 		Iff1:              0,
 		Iff2:              0,
@@ -808,8 +808,8 @@ func (z *Z80Type) doCpi() {
 
 	z.Flags.C = tempCarry
 	fh := z.fhv()
-	z.Flags.Y = ((z.A-readValue-fh)&0x02)>>1 != 0
-	z.Flags.X = ((z.A-readValue-fh)&0x08)>>3 != 0
+	z.Flags.Y = ((z.A - readValue - fh) & 0x02) != 0
+	z.Flags.X = ((z.A - readValue - fh) & 0x08) != 0
 	z.incHl()
 	z.decBc()
 	z.Flags.P = (z.B | z.C) != 0
@@ -838,8 +838,8 @@ func (z *Z80Type) doLdd() {
 	z.decHl()
 	z.decBc()
 	z.Flags.P = (z.C | z.B) != 0
-	z.Flags.Y = ((z.A+readValue)&0x02)>>1 != 0
-	z.Flags.X = ((z.A+readValue)&0x08)>>3 != 0
+	z.Flags.Y = ((z.A + readValue) & 0x02) != 0
+	z.Flags.X = ((z.A + readValue) & 0x08) != 0
 }
 
 func (z *Z80Type) doCpd() {

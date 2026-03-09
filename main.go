@@ -50,7 +50,7 @@ func main() {
 	w, raster, label := mainWindow(computer)
 
 	go emulator(computer)
-	go screen(computer, raster, label, conf)
+	go screen(computer, raster, label)
 	(*w).ShowAndRun()
 }
 
@@ -131,7 +131,7 @@ func mainWindow(computer *okean240.ComputerType) (*fyne.Window, *canvas.Raster, 
 	return &w, raster, label
 }
 
-func screen(computer *okean240.ComputerType, raster *canvas.Raster, label *widget.Label, emuConfig *config.OkEmuConfig) {
+func screen(computer *okean240.ComputerType, raster *canvas.Raster, label *widget.Label) {
 	ticker := time.NewTicker(20 * time.Millisecond)
 	frame := 0
 	var pre uint64 = 0
