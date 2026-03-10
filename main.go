@@ -7,6 +7,7 @@ import (
 	"okemu/config"
 	"okemu/logger"
 	"okemu/okean240"
+	"sync/atomic"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -23,10 +24,11 @@ var BuildTime = "2026-03-01"
 //go:embed hex/format.hex
 var serialBytes []byte
 
-//go:embed bin/TET.COM
+//go:embed bin/FORMAT.COM
 var ramBytes []byte
 
 var needReset = false
+var fullSpeed atomic.Bool
 
 func main() {
 
@@ -107,9 +109,12 @@ func mainWindow(computer *okean240.ComputerType) (*fyne.Window, *canvas.Raster, 
 		widget.NewButton("RUN", func() {
 			computer.SetRamBytes(ramBytes)
 		}),
-		//widget.NewButton("DUMP", func() {
-		//	computer.Dump(0x399, 15000)
-		//}),
+		widget.NewButton("DUMP", func() {
+			computer.Dump(0x100, 15000)
+		}),
+		widget.NewCheck("Full speed", func(b bool) {
+			fullSpeed.Store(b)
+		}),
 		widget.NewSeparator(),
 		widget.NewButton("Reset", func() {
 			needReset = true
@@ -152,31 +157,31 @@ func screen(computer *okean240.ComputerType, raster *canvas.Raster, label *widge
 	}
 }
 
-const ticksPerTicker uint64 = 3
+const ticksPerTact uint64 = 3
 
 func emulator(computer *okean240.ComputerType) {
 	ticker := time.NewTicker(66 * time.Nanosecond)
 	var ticks uint64 = 0
-	var nextClock uint64 = ticks + ticksPerTicker
+	var nextClock = ticks + ticksPerTact
 	//var ticksCPU = 3
 	for range ticker.C {
-		//for {
-		//time.Sleep(133 * time.Nanosecond)
 		ticks++
 		if ticks%10 == 0 {
 			// 1.5 MHz
 			computer.TimerClk()
 		}
-		if ticks >= nextClock {
-			nextClock = ticks + computer.Do()*ticksPerTicker
+		if fullSpeed.Load() {
+			computer.Do()
+		} else {
+			if ticks >= nextClock {
+				nextClock = ticks + computer.Do()*ticksPerTact
+			}
 		}
+		//computer.Do()
 		if needReset {
 			computer.Reset()
 			needReset = false
 		}
-		//if ticks > ticksCPU {
-		//ticksCPU = ticks + computer.Do()*2
-		//}
 	}
 }
 

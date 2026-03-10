@@ -2,20 +2,25 @@ package okean240
 
 import (
 	_ "embed"
+	"encoding/binary"
 	"image/color"
 	"okemu/config"
 	"okemu/okean240/fdc"
 	"okemu/okean240/pic"
 	"okemu/okean240/pit"
 	"okemu/okean240/usart"
-	"okemu/z80/js"
+	"os"
+
+	//"okemu/z80"
+	"okemu/z80/c99"
+	//"okemu/z80/js"
 
 	"fyne.io/fyne/v2"
 	log "github.com/sirupsen/logrus"
 )
 
 type ComputerType struct {
-	cpu           *js.Z80
+	cpu           *c99.Z80
 	memory        Memory
 	ioPorts       [256]byte
 	cycles        uint64
@@ -73,7 +78,7 @@ func New(cfg *config.OkEmuConfig) *ComputerType {
 	c.memory = Memory{}
 	c.memory.Init(cfg.MonitorFile, cfg.CPMFile)
 
-	c.cpu = js.New(&c)
+	c.cpu = c99.New(&c)
 
 	c.cycles = 0
 	c.dd17EnableOut = false
@@ -90,7 +95,7 @@ func New(cfg *config.OkEmuConfig) *ComputerType {
 	c.pit = pit.New()
 	c.usart = usart.New()
 	c.pic = pic.New()
-	c.fdc = fdc.New()
+	c.fdc = fdc.New(cfg)
 
 	return &c
 }
@@ -110,14 +115,11 @@ func (c *ComputerType) Reset() {
 }
 
 func (c *ComputerType) Do() uint64 {
-	//s := c.cpu.GetState()
-	//if s.PC == 0xe0db {
-	//	log.Debugf("breakpoint")
-	//}
 	ticks := c.cpu.RunInstruction()
 	c.cycles += ticks
-	//if c.cpu.PC == 0xFF26 {
-	//	log.Debugf("%4X: H:%X L:%X A:%X B: %X C: %X D: %X E: %X", c.cpu.PC, c.cpu.H, c.cpu.L, c.cpu.A, c.cpu.B, c.cpu.C, c.cpu.D, c.cpu.E)
+	//pc := c.cpu.GetState().PC
+	//if pc >= 0xfea3 && pc <= 0xff25 {
+	//	c.cpu.DebugOutput()
 	//}
 	return ticks
 }
@@ -245,25 +247,28 @@ func (c *ComputerType) SetRamBytes(bytes []byte) {
 	//c.cpu.PC = 0x100
 }
 
-//func (c *ComputerType) Dump(start uint16, length uint16) {
-//	file, err := os.Create("dump.dat")
-//	if err != nil {
-//		log.Error(err)
-//		return
-//	}
-//	defer func(file *os.File) {
-//		err := file.Close()
-//		if err != nil {
-//			log.Error(err)
-//		}
-//	}(file)
-//
-//	var buffer []byte
-//	for addr := 0; addr < 65535; addr++ {
-//		buffer = append(buffer, c.memory.MemRead(uint16(addr)))
-//	}
-//	err = binary.Write(file, binary.LittleEndian, buffer)
-//	if err != nil {
-//		log.Error("Save memory dump failed:", err)
-//	}
-//}
+func (c *ComputerType) Dump(start uint16, length uint16) {
+	file, err := os.Create("dump.dat")
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			log.Error(err)
+		}
+	}(file)
+
+	var buffer []byte
+	for addr := start; addr < start+length; addr++ {
+		buffer = append(buffer, c.memory.MemRead(addr))
+	}
+	_, err = file.Write(buffer)
+	err = binary.Write(file, binary.LittleEndian, buffer)
+	if err != nil {
+		log.Error("Save memory dump failed:", err)
+	} else {
+		log.Debug("Memory dump saved successfully")
+	}
+}

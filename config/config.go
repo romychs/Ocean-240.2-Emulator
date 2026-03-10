@@ -15,6 +15,8 @@ type OkEmuConfig struct {
 	LogLevel    string `yaml:"logLevel"`
 	MonitorFile string `yaml:"monitorFile"`
 	CPMFile     string `yaml:"cpmFile"`
+	FloppyB     string `yaml:"floppyB"`
+	FloppyC     string `yaml:"floppyC"`
 }
 
 var config *OkEmuConfig

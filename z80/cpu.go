@@ -22,6 +22,8 @@ type CPUInterface interface {
 	GetState() *Z80CPU
 	// SetState Set current CPU state
 	SetState(state *Z80CPU)
+	// DebugOutput out current CPU state
+	DebugOutput()
 }
 
 // FlagsType - Processor flags

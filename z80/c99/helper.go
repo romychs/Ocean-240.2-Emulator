@@ -155,11 +155,15 @@ func (z *Z80) updateXY(result byte) {
 	z.xf = result&0x08 != 0
 }
 
-func (z *Z80) debugOutput() {
+func (z *Z80) DebugOutput() {
 	log.Debugf("PC: %04X, AF: %04X, BC: %04X, DE: %04X, HL: %04X, SP: %04X, IX: %04X, IY: %04X, I: %02X, R: %02X",
 		z.pc, (uint16(z.a)<<8)|uint16(z.get_f()), z.get_bc(), z.get_de(), z.get_hl(), z.sp,
 		z.ix, z.iy, z.i, z.r)
 
 	log.Debugf("\t(%02X %02X %02X %02X), cyc: %d\n", z.rb(z.pc), z.rb(z.pc+1),
 		z.rb(z.pc+2), z.rb(z.pc+3), z.cyc)
+}
+
+func (z *Z80) Reset() {
+
 }

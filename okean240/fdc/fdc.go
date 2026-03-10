@@ -8,7 +8,9 @@ package fdc
  */
 
 import (
+	"bytes"
 	"encoding/binary"
+	"okemu/config"
 	"os"
 	"slices"
 	"strconv"
@@ -18,6 +20,7 @@ import (
 
 // Floppy parameters
 const (
+	TotalDrives    = 2
 	FloppySizeK    = 720
 	SectorSize     = 512
 	SideCount      = 2
@@ -69,14 +72,16 @@ type FloppyDriveController struct {
 	sectorNo byte
 	trackNo  byte
 	drq      byte
-	// FloppyStorage
-	sectors [SizeInSectors]SectorType
+	// FloppyStorage B and C
+	sectors [TotalDrives][SizeInSectors]SectorType
 	data    byte
 	status  byte
 	lastCmd byte
 	//curSector   *SectorType
 	bytePtr     uint16
 	trackBuffer []byte
+	floppyBFile string
+	floppyCFile string
 }
 
 type FloppyDriveControllerInterface interface {
@@ -95,8 +100,12 @@ type FloppyDriveControllerInterface interface {
 	Sector() byte
 }
 
+func getSectorNo(side byte, track byte, sector byte) uint16 {
+	return uint16(side)*SectorsPerSide + uint16(track)*SectorPerTrack + uint16(sector) - 1
+}
+
 func (f *FloppyDriveController) GetSectorNo() uint16 {
-	return uint16(f.sideNo)*SectorsPerSide + uint16(f.trackNo)*SectorPerTrack + uint16(f.sectorNo) - 1
+	return getSectorNo(f.sideNo, f.trackNo, f.sectorNo)
 }
 
 func (f *FloppyDriveController) SetFloppy(val byte) {
@@ -104,14 +113,14 @@ func (f *FloppyDriveController) SetFloppy(val byte) {
 	f.sideNo = val >> 5 & 0x01
 	f.ddEn = val >> 4 & 0x01
 	f.init = val >> 3 & 0x01
-	f.drive = val >> 2 & 0x01
+	f.drive = (^val) >> 2 & 0x01
 	f.mot1 = val >> 1 & 0x01
 	f.mot0 = val & 0x01
 }
 
 func (f *FloppyDriveController) GetFloppy() byte {
 	// RD: 7-MOTST, 6-SSEL, 5,4-x , 3-DRSEL, 2-MOT1, 1-MOT0, 0-INT
-	floppy := f.intRq | (f.mot0 << 1) | (f.mot1 << 2) | (f.drive << 3) | (f.sideNo << 6) | (f.motSt << 7)
+	floppy := f.intRq | (f.mot0 << 1) | (f.mot1 << 2) | ((^f.drive & 1) << 3) | (f.sideNo << 6) | (f.motSt << 7)
 	return floppy
 }
 
@@ -119,34 +128,34 @@ func (f *FloppyDriveController) SetCmd(value byte) {
 	f.lastCmd = value >> 4
 	switch f.lastCmd {
 	case CmdRestore:
-		log.Debug("CMD Restore (seek trackNo 0)")
+		log.Trace("CMD Restore (seek trackNo 0)")
 		f.trackNo = 0
 		f.status = StatusTR0 | StatusHeadLoaded // TR0 & Head loaded
 	case CmdSeek:
-		log.Debugf("CMD Seek %x", value&0xf)
+		log.Tracef("CMD Seek %x", value&0xf)
 		f.status = StatusHeadLoaded
 		f.trackNo = f.data
 	case CmdStep:
-		log.Debugf("CMD Step %x", value&0xf)
+		log.Tracef("CMD Step %x", value&0xf)
 		f.status = StatusHeadLoaded
 		f.trackNo = f.data
 	case CmdStepIn:
-		log.Debugf("CMD StepIn (Next track) %x", value&0xf)
+		log.Tracef("CMD StepIn (Next track) %x", value&0xf)
 		f.status = StatusHeadLoaded
 		if f.trackNo < TracksCount {
 			f.trackNo++
 		}
 	case CmdStepOut:
-		log.Debugf("CMD StepOut (Previous track) %x", value&0xf)
+		log.Tracef("CMD StepOut (Previous track) %x", value&0xf)
 		f.status = StatusHeadLoaded
 		if f.trackNo > 0 {
 			f.trackNo--
 		}
 	case CmdReadSector:
 		sectorNo := f.GetSectorNo()
-		log.Debugf("CMD Read single sectorNo: %d", sectorNo)
+		log.Tracef("CMD Read single sectorNo: %d", sectorNo)
 		if sectorNo < SizeInSectors {
-			f.trackBuffer = slices.Clone(f.sectors[sectorNo])
+			f.trackBuffer = slices.Clone(f.sectors[f.drive][sectorNo])
 			f.drq = 1
 			f.status = 0x00
 		} else {
@@ -157,14 +166,14 @@ func (f *FloppyDriveController) SetCmd(value byte) {
 		sectorNo := f.GetSectorNo()
 		f.trackBuffer = []byte{}
 		for c := 0; c < SectorPerTrack; c++ {
-			f.trackBuffer = slices.Concat(f.trackBuffer, f.sectors[sectorNo])
+			f.trackBuffer = slices.Concat(f.trackBuffer, f.sectors[f.drive][sectorNo])
 			sectorNo++
 		}
 		f.drq = 1
 		f.status = 0x0
 	case CmdWriteSector:
 		sectorNo := f.GetSectorNo()
-		log.Debugf("CMD Write Sector %d", sectorNo)
+		log.Tracef("CMD Write Sector %d", sectorNo)
 		if sectorNo < SizeInSectors {
 			f.bytePtr = 0
 			f.drq = 1
@@ -175,12 +184,12 @@ func (f *FloppyDriveController) SetCmd(value byte) {
 			f.status = StatusRNF
 		}
 	case CmdWriteTrack:
-		log.Debugf("CMD Write Track %x", f.trackNo)
+		log.Tracef("CMD Write Track %x", f.trackNo)
 		f.status = 0x00
 		f.trackBuffer = []byte{}
 		f.drq = 1
 	default:
-		log.Debugf("Unknown CMD: %x VAL: %x", f.lastCmd, value&0xf)
+		log.Errorf("Unknown CMD: %x VAL: %x", f.lastCmd, value&0xf)
 	}
 }
 
@@ -189,7 +198,7 @@ func (f *FloppyDriveController) Status() byte {
 }
 
 func (f *FloppyDriveController) SetTrackNo(value byte) {
-	//log.Debugf("FDC Track: %d", value)
+	//log.Tracef("FDC Track: %d", value)
 	if value > TracksCount {
 		f.status |= 0x10 /// RNF
 		log.Error("Track not found!")
@@ -199,17 +208,17 @@ func (f *FloppyDriveController) SetTrackNo(value byte) {
 }
 
 func (f *FloppyDriveController) SetSectorNo(value byte) {
-	//log.Debugf("FDC Sector: %d", value)
+	//log.Tracef("FDC Sector: %d", value)
 	if value > SectorPerTrack {
 		f.status |= 0x10
-		log.Error("Record not found!")
+		log.Errorf("Record not found %d!", value)
 	} else {
 		f.sectorNo = value
 	}
 }
 
 func (f *FloppyDriveController) SetData(value byte) {
-	//log.Debugf("FCD Data: %d", value)
+	//log.Tracef("FCD Data: %d", value)
 	if f.lastCmd == CmdWriteTrack {
 		if len(f.trackBuffer) < TrackBufferSize {
 			f.trackBuffer = append(f.trackBuffer, value)
@@ -217,6 +226,7 @@ func (f *FloppyDriveController) SetData(value byte) {
 			f.status = 0x00
 		} else {
 			//f.dump()
+			f.writeTrack()
 			f.drq = 0
 			f.status = 0x00
 			f.lastCmd = CmdNoCommand
@@ -232,11 +242,42 @@ func (f *FloppyDriveController) SetData(value byte) {
 		}
 		if len(f.trackBuffer) == SectorSize {
 			f.drq = 0
-			f.sectors[f.GetSectorNo()] = slices.Clone(f.trackBuffer)
+			f.sectors[f.drive][f.GetSectorNo()] = slices.Clone(f.trackBuffer)
 			f.lastCmd = CmdNoCommand
 		}
 	}
 	f.data = value
+}
+
+const SectorInfoSize = 626
+const SectorInfoOffset = 0x0092
+const TrackNoOffset = 0x0010
+const SideNoOffset = 0x0011
+const SectorNoOffset = 0x0012
+const SectorLengthOffset = 0x0013
+const SectorDataOffset = 0x003b
+
+var SectorLengths = []int{128, 256, 512, 1024}
+
+func (f *FloppyDriveController) writeTrack() {
+	// skip header
+	ptr := SectorInfoOffset
+	// repeat for every sector on track
+	for sec := 0; sec < SectorPerTrack; sec++ {
+		// get info from header
+		trackNo := f.trackBuffer[ptr+TrackNoOffset]
+		sideNo := f.trackBuffer[ptr+SideNoOffset]
+		sectorNo := f.trackBuffer[ptr+SectorNoOffset]
+		sectorLength := SectorLengths[f.trackBuffer[ptr+SectorLengthOffset]&0x03]
+		// get sector data
+		sectorData := f.trackBuffer[ptr+SectorDataOffset : ptr+SectorDataOffset+sectorLength]
+		absSector := getSectorNo(sideNo, trackNo, sectorNo)
+		log.Debugf("Write Drive: %d; side:%d; T: %d S: %d Len: %d  Data: [%X..%X]; Abs sector: %d", f.drive, sideNo, trackNo, sectorNo, len(sectorData), sectorData[0], sectorData[len(sectorData)-1], absSector)
+		// write data to sector buffer
+		f.sectors[f.drive][absSector] = slices.Clone(sectorData)
+		// shift pointer to next sector info block
+		ptr += SectorInfoSize
+	}
 }
 
 func (f *FloppyDriveController) Data() byte {
@@ -263,90 +304,48 @@ func (f *FloppyDriveController) Drq() byte {
 }
 
 func (f *FloppyDriveController) LoadFloppy() {
-	log.Debug("Load Floppy content.")
-	file, err := os.Open("floppy.okd")
-	if err != nil {
-		log.Error(err)
-		return
-	}
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			log.Error(err)
-		}
-	}(file)
-
-	for sector := 0; sector < SizeInSectors; sector++ {
-		var n int
-		n, err = file.Read(f.sectors[sector])
-		if n != SectorSize {
-			log.Error("Load floppy error, sector size: %d <> %d", n, SectorSize)
-		}
-		//		err = binary.Read(file, binary.LittleEndian, f.sectors[sector])
-		if err != nil {
-			log.Error("Load floppy content failed:", err)
-			break
-		}
-
-	}
-
+	log.Debug("Load Floppy B")
+	loadFloppy(&f.sectors[0], f.floppyBFile)
+	log.Debug("Load Floppy C")
+	loadFloppy(&f.sectors[1], f.floppyCFile)
 }
 
 func (f *FloppyDriveController) SaveFloppy() {
-	log.Debug("Save Floppy content.")
-	file, err := os.Create("floppy.okd")
-	if err != nil {
-		log.Error(err)
-		return
-	}
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			log.Error(err)
-		}
-	}(file)
-
-	// Write the struct to the file in little-endian byte order
-	for sector := 0; sector < SizeInSectors; sector++ {
-		var n int
-		n, err = file.Write(f.sectors[sector])
-		if n != SectorSize {
-			log.Errorf("Save floppy error, sector %d size: %d <> %d", sector, n, SectorSize)
-		}
-		if err != nil {
-			log.Error("Save floppy content failed:", err)
-			break
-		}
-	}
-
+	log.Debug("Save Floppy B")
+	saveFloppy(&f.sectors[0], f.floppyBFile)
+	log.Debug("Save Floppy C")
+	saveFloppy(&f.sectors[1], f.floppyCFile)
 }
 
-func New() *FloppyDriveController {
-	sec := [SizeInSectors]SectorType{}
-	for i := 0; i < SizeInSectors; i++ {
-		sec[i] = make([]byte, SectorSize)
-		for s := 0; s < SectorSize; s++ {
-			sec[i][s] = 0xE5
+func New(conf *config.OkEmuConfig) *FloppyDriveController {
+	sec := [2][SizeInSectors]SectorType{}
+	// for each drive
+	for d := 0; d < TotalDrives; d++ {
+		// for each sector
+		for i := 0; i < SizeInSectors; i++ {
+			sec[d][i] = bytes.Repeat([]byte{0xe5}, SectorSize)
 		}
 	}
 	return &FloppyDriveController{
-		sideNo:  0,
-		ddEn:    0,
-		init:    0,
-		drive:   0,
-		mot1:    0,
-		mot0:    0,
-		intRq:   0,
-		motSt:   0,
-		drq:     0,
-		lastCmd: 0xff,
-		sectors: sec,
-		bytePtr: 0xffff,
+		sideNo:      0,
+		ddEn:        0,
+		init:        0,
+		drive:       0,
+		mot1:        0,
+		mot0:        0,
+		intRq:       0,
+		motSt:       0,
+		drq:         0,
+		lastCmd:     0xff,
+		sectors:     sec,
+		bytePtr:     0xffff,
+		floppyBFile: conf.FloppyB,
+		floppyCFile: conf.FloppyC,
 	}
 }
 
 func (f *FloppyDriveController) dump() {
-	log.Debug("Dump Buffer content.")
+	log.Trace("Dump Buffer content.")
 	file, err := os.Create("track-" + strconv.Itoa(int(f.trackNo)) + ".dat")
 	if err != nil {
 		log.Error(err)
@@ -375,3 +374,58 @@ func (f *FloppyDriveController) Sector() byte {
 }
 
 //
+
+func loadFloppy(sectors *[SizeInSectors]SectorType, fileName string) {
+	log.Debugf("Load Floppy content from file %s.", fileName)
+	file, err := os.Open(fileName)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			log.Error(err)
+		}
+	}(file)
+
+	for sector := 0; sector < SizeInSectors; sector++ {
+		var n int
+		n, err = file.Read(sectors[sector])
+		if n != SectorSize {
+			log.Error("Load floppy error, sector size: %d <> %d", n, SectorSize)
+		}
+		if err != nil {
+			log.Error("Load floppy content failed:", err)
+			break
+		}
+	}
+}
+
+func saveFloppy(sectors *[SizeInSectors]SectorType, fileName string) {
+	log.Debugf("Save Floppy to file %s.", fileName)
+	file, err := os.Create(fileName)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			log.Error(err)
+		}
+	}(file)
+
+	for sector := 0; sector < SizeInSectors; sector++ {
+		var n int
+		n, err = file.Write(sectors[sector])
+		if n != SectorSize {
+			log.Errorf("Save floppy error, sector %d size: %d <> %d", sector, n, SectorSize)
+		}
+		if err != nil {
+			log.Error("Save floppy content failed:", err)
+			break
+		}
+	}
+}
