@@ -356,7 +356,8 @@ func (z *Z80) ldi() {
 	// for the calculation of xf/yf on LDI
 	result := val + z.a
 
-	z.updateXY(result)
+	z.xf = result&0x08 != 0 // bit 3
+	z.yf = result&0x02 != 0 // bit 1
 
 	z.nf = false
 	z.hf = false

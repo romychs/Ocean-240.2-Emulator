@@ -2,19 +2,6 @@ package c99
 
 import log "github.com/sirupsen/logrus"
 
-// GetBit return bit "n" from byte "val"
-func getBit(n byte, val byte) byte {
-	return ((val) >> (n)) & 1
-}
-
-func getBit3(val byte) bool {
-	return (val & 0x08) != 0
-}
-
-func getBit5(val byte) bool {
-	return (val & 0x20) != 0
-}
-
 func (z *Z80) rb(addr uint16) byte {
 	return z.core.MemRead(addr)
 }

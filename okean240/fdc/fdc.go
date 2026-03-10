@@ -304,16 +304,12 @@ func (f *FloppyDriveController) Drq() byte {
 }
 
 func (f *FloppyDriveController) LoadFloppy() {
-	log.Debug("Load Floppy B")
 	loadFloppy(&f.sectors[0], f.floppyBFile)
-	log.Debug("Load Floppy C")
 	loadFloppy(&f.sectors[1], f.floppyCFile)
 }
 
 func (f *FloppyDriveController) SaveFloppy() {
-	log.Debug("Save Floppy B")
 	saveFloppy(&f.sectors[0], f.floppyBFile)
-	log.Debug("Save Floppy C")
 	saveFloppy(&f.sectors[1], f.floppyCFile)
 }
 
@@ -373,8 +369,7 @@ func (f *FloppyDriveController) Sector() byte {
 	return f.sectorNo
 }
 
-//
-
+// loadFloppy load floppy image to sector buffer from file
 func loadFloppy(sectors *[SizeInSectors]SectorType, fileName string) {
 	log.Debugf("Load Floppy content from file %s.", fileName)
 	file, err := os.Open(fileName)
