@@ -157,7 +157,7 @@ func screen(computer *okean240.ComputerType, raster *canvas.Raster, label *widge
 	}
 }
 
-const ticksPerTact uint64 = 3
+const ticksPerTact uint64 = 4
 
 func emulator(computer *okean240.ComputerType) {
 	ticker := time.NewTicker(66 * time.Nanosecond)
@@ -174,7 +174,7 @@ func emulator(computer *okean240.ComputerType) {
 			computer.Do()
 		} else {
 			if ticks >= nextClock {
-				nextClock = ticks + computer.Do()*ticksPerTact
+				nextClock = ticks + uint64(computer.Do())*ticksPerTact
 			}
 		}
 		//computer.Do()

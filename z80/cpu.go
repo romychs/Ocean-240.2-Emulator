@@ -17,7 +17,7 @@ type CPUInterface interface {
 	// Reset CPU to initial state
 	Reset()
 	// RunInstruction Run single instruction, return number of CPU cycles
-	RunInstruction() uint64
+	RunInstruction() uint32
 	// GetState Get current CPU state
 	GetState() *Z80CPU
 	// SetState Set current CPU state
@@ -68,7 +68,7 @@ type Z80CPU struct {
 	Halted            bool
 	DoDelayedDI       bool
 	DoDelayedEI       bool
-	CycleCounter      byte
+	CycleCount        uint32
 	InterruptOccurred bool
 	MemPtr            uint16
 	//core              MemIoRW

@@ -3,9 +3,9 @@ package c99
 import log "github.com/sirupsen/logrus"
 
 // executes a CB opcode
-func (z *Z80) exec_opcode_cb(opcode byte) {
-	z.cyc += 8
-	z.inc_r()
+func (z *Z80) execOpcodeCB(opcode byte) {
+	z.cycleCount += 8
+	z.incR()
 
 	// decoding instructions from http://z80.info/decoding.htm#cb
 	x_ := (opcode >> 6) & 3 // 0b11
@@ -29,7 +29,7 @@ func (z *Z80) exec_opcode_cb(opcode byte) {
 	case 5:
 		reg = &z.l
 	case 6:
-		hl = z.rb(z.get_hl())
+		hl = z.rb(z.hl())
 		reg = &hl
 	case 7:
 		reg = &z.a
@@ -63,8 +63,8 @@ func (z *Z80) exec_opcode_cb(opcode byte) {
 
 		// in bit (hl), x/y flags are handled differently:
 		if z_ == 6 {
-			z.updateXY(byte(z.mem_ptr >> 8))
-			z.cyc += 4
+			z.updateXY(byte(z.memPtr >> 8))
+			z.cycleCount += 4
 		}
 
 	case 2:
@@ -74,11 +74,11 @@ func (z *Z80) exec_opcode_cb(opcode byte) {
 	}
 
 	if (x_ == 0 || x_ == 2 || x_ == 3) && z_ == 6 {
-		z.cyc += 7
+		z.cycleCount += 7
 	}
 
 	if reg == &hl {
-		z.wb(z.get_hl(), hl)
+		z.wb(z.hl(), hl)
 	}
 }
 
@@ -146,7 +146,7 @@ func (z *Z80) exec_opcode_dcb(opcode byte, addr uint16) {
 			z.l = result
 		// always false
 		//case 6:
-		//	z.wb(z.get_hl(), result)
+		//	z.wb(z.hl(), result)
 		case 7:
 			z.a = result
 		}
@@ -154,9 +154,9 @@ func (z *Z80) exec_opcode_dcb(opcode byte, addr uint16) {
 
 	if x_ == 1 {
 		// bit instructions take 20 cycles, others take 23
-		z.cyc += 20
+		z.cycleCount += 20
 	} else {
 		z.wb(addr, result)
-		z.cyc += 23
+		z.cycleCount += 23
 	}
 }

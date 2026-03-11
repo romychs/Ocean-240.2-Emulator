@@ -5,14 +5,13 @@ import "okemu/z80"
 type Z80 struct {
 
 	// cycle count (t-states)
-	cyc      uint64
-	inst_cyc byte
+	cycleCount uint32
 
 	// special purpose registers
 	pc, sp, ix, iy uint16
 
 	// "wz" register
-	mem_ptr uint16
+	memPtr uint16
 
 	// main registers
 	a, b, c, d, e, h, l byte
@@ -25,14 +24,14 @@ type Z80 struct {
 
 	// flags: sign, zero, yf, half-carry, xf, parity/overflow, negative, carry
 	sf, zf, yf, hf, xf, pf, nf, cf bool
-	iff_delay                      byte
-	interrupt_mode                 byte
-	int_data                       byte
+	iffDelay                       byte
+	interruptMode                  byte
+	intData                        byte
 	iff1                           bool
 	iff2                           bool
-	halted                         bool
-	int_pending                    bool
-	nmi_pending                    bool
+	isHalted                       bool
+	intPending                     bool
+	nmiPending                     bool
 
 	core z80.MemIoRW
 }
@@ -42,16 +41,14 @@ func New(core z80.MemIoRW) *Z80 {
 	z := Z80{}
 	z.core = core
 
-	z.cyc = 0
+	z.cycleCount = 0
 
 	z.pc = 0
 	z.sp = 0xFFFF
 	z.ix = 0
 	z.iy = 0
-	z.mem_ptr = 0
+	z.memPtr = 0
 
-	// af and sp are set to 0xFFFF after reset,
-	// and the other values are undefined (z80-documented)
 	z.a = 0xFF
 	z.b = 0
 	z.c = 0
@@ -81,32 +78,32 @@ func New(core z80.MemIoRW) *Z80 {
 	z.nf = true
 	z.cf = true
 
-	z.iff_delay = 0
-	z.interrupt_mode = 0
+	z.iffDelay = 0
+	z.interruptMode = 0
 	z.iff1 = false
 	z.iff2 = false
-	z.halted = false
-	z.int_pending = false
-	z.nmi_pending = false
-	z.int_data = 0
+	z.isHalted = false
+	z.intPending = false
+	z.nmiPending = false
+	z.intData = 0
 	return &z
 }
 
 // RunInstruction executes the next instruction in memory + handles interrupts
-func (z *Z80) RunInstruction() uint64 {
-	pre := z.cyc
-	if z.halted {
-		z.exec_opcode(0x00)
+func (z *Z80) RunInstruction() uint32 {
+	pre := z.cycleCount
+	if z.isHalted {
+		z.execOpcode(0x00)
 	} else {
-		opcode := z.nextb()
-		z.exec_opcode(opcode)
+		opcode := z.nextB()
+		z.execOpcode(opcode)
 	}
-	z.process_interrupts()
-	return z.cyc - pre
+	z.processInterrupts()
+	return z.cycleCount - pre
 }
 
 func (z *Z80) SetState(state *z80.Z80CPU) {
-	z.cyc = 0
+	z.cycleCount = 0
 	z.a = state.A
 	z.b = state.B
 	z.c = state.C
@@ -129,7 +126,7 @@ func (z *Z80) SetState(state *z80.Z80CPU) {
 	z.iy = state.IY
 	z.i = state.I
 	z.r = state.R
-	z.mem_ptr = state.MemPtr
+	z.memPtr = state.MemPtr
 
 	z.sf = state.Flags.S
 	z.zf = state.Flags.Z
@@ -143,13 +140,13 @@ func (z *Z80) SetState(state *z80.Z80CPU) {
 	z.f_ = state.FlagsAlt.GetFlags()
 
 	//z.iff_delay = 0
-	z.interrupt_mode = state.IMode
+	z.interruptMode = state.IMode
 	z.iff1 = state.Iff1
 	z.iff2 = state.Iff2
-	z.halted = state.Halted
-	z.int_pending = state.InterruptOccurred
-	z.nmi_pending = false
-	z.int_data = 0
+	z.isHalted = state.Halted
+	z.intPending = state.InterruptOccurred
+	z.nmiPending = false
+	z.intData = 0
 }
 func (z *Z80) GetState() *z80.Z80CPU {
 	return &z80.Z80CPU{
@@ -177,15 +174,15 @@ func (z *Z80) GetState() *z80.Z80CPU {
 
 		Flags:             z.getFlags(),
 		FlagsAlt:          z.getAltFlags(),
-		IMode:             z.interrupt_mode,
+		IMode:             z.interruptMode,
 		Iff1:              z.iff1,
 		Iff2:              z.iff2,
-		Halted:            z.halted,
-		DoDelayedDI:       z.int_pending,
-		DoDelayedEI:       z.int_pending,
-		CycleCounter:      z.inst_cyc,
-		InterruptOccurred: z.int_pending,
-		MemPtr:            z.mem_ptr,
+		Halted:            z.isHalted,
+		DoDelayedDI:       z.intPending,
+		DoDelayedEI:       z.intPending,
+		CycleCount:        z.cycleCount,
+		InterruptOccurred: z.intPending,
+		MemPtr:            z.memPtr,
 	}
 }
 

@@ -5,46 +5,46 @@ import log "github.com/sirupsen/logrus"
 // jumps to an address
 func (z *Z80) jump(addr uint16) {
 	z.pc = addr
-	z.mem_ptr = addr
+	z.memPtr = addr
 }
 
 // jumps to next word in memory if condition is true
 func (z *Z80) cond_jump(condition bool) {
-	addr := z.nextw()
+	addr := z.nextW()
 	if condition {
 		z.jump(addr)
 	}
-	z.mem_ptr = addr
+	z.memPtr = addr
 }
 
 // calls to next word in memory
 func (z *Z80) call(addr uint16) {
-	z.pushw(z.pc)
+	z.pushW(z.pc)
 	z.pc = addr
-	z.mem_ptr = addr
+	z.memPtr = addr
 }
 
 // calls to next word in memory if condition is true
 func (z *Z80) cond_call(condition bool) {
-	addr := z.nextw()
+	addr := z.nextW()
 	if condition {
 		z.call(addr)
-		z.cyc += 7
+		z.cycleCount += 7
 	}
-	z.mem_ptr = addr
+	z.memPtr = addr
 }
 
 // returns from subroutine
 func (z *Z80) ret() {
-	z.pc = z.popw()
-	z.mem_ptr = z.pc
+	z.pc = z.popW()
+	z.memPtr = z.pc
 }
 
 // returns from subroutine if condition is true
 func (z *Z80) cond_ret(condition bool) {
 	if condition {
 		z.ret()
-		z.cyc += 6
+		z.cycleCount += 6
 	}
 }
 
@@ -54,14 +54,14 @@ func (z *Z80) jr(offset byte) {
 	} else {
 		z.pc += uint16(offset)
 	}
-	z.mem_ptr = z.pc
+	z.memPtr = z.pc
 }
 
 func (z *Z80) cond_jr(condition bool) {
-	b := z.nextb()
+	b := z.nextB()
 	if condition {
 		z.jr(b)
-		z.cyc += 5
+		z.cycleCount += 5
 	}
 }
 
@@ -100,7 +100,7 @@ func (z *Z80) addw(a uint16, b uint16, cy bool) uint16 {
 	msb := z.addb(byte(a>>8), byte(b>>8), z.cf)
 	result := (uint16(msb) << 8) | uint16(lsb)
 	z.zf = result == 0
-	z.mem_ptr = a + 1
+	z.memPtr = a + 1
 	return result
 }
 
@@ -110,7 +110,7 @@ func (z *Z80) subw(a uint16, b uint16, cy bool) uint16 {
 	msb := z.subb(byte(a>>8), byte(b>>8), z.cf)
 	result := (uint16(msb) << 8) | uint16(lsb)
 	z.zf = result == 0
-	z.mem_ptr = a + 1
+	z.memPtr = a + 1
 	return result
 }
 
@@ -119,8 +119,8 @@ func (z *Z80) addhl(val uint16) {
 	sf := z.sf
 	zf := z.zf
 	pf := z.pf
-	result := z.addw(z.get_hl(), val, false)
-	z.set_hl(result)
+	result := z.addw(z.hl(), val, false)
+	z.setHL(result)
 	z.sf = sf
 	z.zf = zf
 	z.pf = pf
@@ -140,18 +140,18 @@ func (z *Z80) addiz(reg *uint16, val uint16) {
 
 // adchl adds a word (+ carry) to HL
 func (z *Z80) adchl(val uint16) {
-	result := z.addw(z.get_hl(), val, z.cf)
+	result := z.addw(z.hl(), val, z.cf)
 	z.sf = result&0x8000 != 0
 	z.zf = result == 0
-	z.set_hl(result)
+	z.setHL(result)
 }
 
 // sbchl subtracts a word (+ carry) to HL
 func (z *Z80) sbchl(val uint16) {
-	result := z.subw(z.get_hl(), val, z.cf)
+	result := z.subw(z.hl(), val, z.cf)
 	z.sf = result&0x8000 != 0
 	z.zf = result == 0
-	z.set_hl(result)
+	z.setHL(result)
 }
 
 // increments a byte value
@@ -347,14 +347,14 @@ func (z *Z80) cb_bit(val byte, n byte) byte {
 }
 
 func (z *Z80) ldi() {
-	de := z.get_de()
-	hl := z.get_hl()
+	de := z.de()
+	hl := z.hl()
 	val := z.rb(hl)
 	z.wb(de, val)
 
-	z.set_hl(z.get_hl() + 1)
-	z.set_de(z.get_de() + 1)
-	z.set_bc(z.get_bc() - 1)
+	z.setHL(z.hl() + 1)
+	z.setDE(z.de() + 1)
+	z.setBC(z.bc() - 1)
 
 	// see https://wikiti.brandonw.net/index.php?title=Z80_Instruction_Set
 	// for the calculation of xf/yf on LDI
@@ -365,67 +365,42 @@ func (z *Z80) ldi() {
 
 	z.nf = false
 	z.hf = false
-	z.pf = z.get_bc() > 0
+	z.pf = z.bc() > 0
 
 }
 
 func (z *Z80) ldd() {
 	z.ldi()
 	// same as ldi but HL and DE are decremented instead of incremented
-	z.set_hl(z.get_hl() - 2)
-	z.set_de(z.get_de() - 2)
+	z.setHL(z.hl() - 2)
+	z.setDE(z.de() - 2)
 }
 
 func (z *Z80) cpi() {
 	cf := z.cf
-	result := z.subb(z.a, z.rb(z.get_hl()), false)
-	z.set_hl(z.get_hl() + 1)
-	z.set_bc(z.get_bc() - 1)
+	result := z.subb(z.a, z.rb(z.hl()), false)
+	z.setHL(z.hl() + 1)
+	z.setBC(z.bc() - 1)
 
 	val := result - bToByte(z.hf)
 	z.xf = val&0x08 != 0
 	z.yf = val&0x02 != 0
-	z.pf = z.get_bc() != 0
+	z.pf = z.bc() != 0
 	z.cf = cf
-	z.mem_ptr += 1
+	z.memPtr += 1
 }
 
 func (z *Z80) cpd() {
 	z.cpi()
 	// same as cpi but HL is decremented instead of incremented
-	z.set_hl(z.get_hl() - 2)
-	z.mem_ptr -= 2
+	z.setHL(z.hl() - 2)
+	z.memPtr -= 2
 }
 
-var halfCarrySubTable = []bool{false, false, true, false, true, false, true, true}
+//var halfCarrySubTable = []bool{false, false, true, false, true, false, true, true}
 
-func (z *Z80) cpir() {
-	value := z.rb(z.get_hl())
-	diff := uint8(uint16(z.a) - uint16(value))
-	lookup := ((z.a & 0x08) >> 3) | ((value & 0x08) >> 2) | ((diff & 0x08) >> 1)
-	z.set_bc(z.get_bc() - 1)
-	z.hf = halfCarrySubTable[lookup]
-	z.pf = z.get_bc() != 0 // V=P
-	z.nf = true
-	z.zf = diff == 0
-	z.sf = diff&0x80 != 0
-	if z.hf {
-		diff--
-	}
-	z.xf = (diff & 0x08) != 0
-	z.yf = (diff & 0x02) != 0
-	if z.pf && !z.zf {
-		z.cyc += 5
-		z.pc -= 2
-		z.mem_ptr = z.pc + 1
-	} else {
-		z.mem_ptr++
-	}
-	z.set_hl(z.get_hl() + 1)
-}
-
-func (z *Z80) in_r_c(r *byte) {
-	*r = z.core.IORead(z.get_bc())
+func (z *Z80) inRC(r *byte) {
+	*r = z.core.IORead(z.bc())
 	z.zf = *r == 0
 	z.sf = *r&0x80 != 0
 	z.pf = parity(*r)
@@ -434,9 +409,9 @@ func (z *Z80) in_r_c(r *byte) {
 }
 
 func (z *Z80) ini() {
-	val := z.core.IORead(z.get_bc())
-	z.wb(z.get_hl(), val)
-	z.mem_ptr = z.get_bc() + 1
+	val := z.core.IORead(z.bc())
+	z.wb(z.hl(), val)
+	z.memPtr = z.bc() + 1
 	z.b--
 
 	other := val + z.c + 1
@@ -452,13 +427,13 @@ func (z *Z80) ini() {
 	z.sf = z.b&0x80 != 0
 	z.zf = z.b == 0
 	z.updateXY(z.b)
-	z.set_hl(z.get_hl() + 1)
+	z.setHL(z.hl() + 1)
 }
 
 func (z *Z80) ind() {
-	val := z.core.IORead(z.get_bc())
-	z.wb(z.get_hl(), val)
-	z.mem_ptr = z.get_bc() - 1
+	val := z.core.IORead(z.bc())
+	z.wb(z.hl(), val)
+	z.memPtr = z.bc() - 1
 	z.b--
 
 	other := val + z.c - 1
@@ -475,15 +450,15 @@ func (z *Z80) ind() {
 	z.sf = z.b&0x80 != 0
 	z.zf = z.b == 0
 	z.updateXY(z.b)
-	z.set_hl(z.get_hl() - 1)
+	z.setHL(z.hl() - 1)
 }
 
 func (z *Z80) outi() {
-	val := z.rb(z.get_hl())
+	val := z.rb(z.hl())
 	z.b--
-	z.mem_ptr = z.get_bc() + 1
-	z.core.IOWrite(z.get_bc(), val)
-	z.set_hl(z.get_hl() + 1)
+	z.memPtr = z.bc() + 1
+	z.core.IOWrite(z.bc(), val)
+	z.setHL(z.hl() + 1)
 	other := val + z.l
 	z.nf = val&0x80 != 0
 	if other < val {
@@ -500,11 +475,11 @@ func (z *Z80) outi() {
 }
 
 func (z *Z80) outd() {
-	val := z.rb(z.get_hl())
+	val := z.rb(z.hl())
 	z.b--
-	z.mem_ptr = z.get_bc() - 1
-	z.core.IOWrite(z.get_bc(), val)
-	z.set_hl(z.get_hl() - 1)
+	z.memPtr = z.bc() - 1
+	z.core.IOWrite(z.bc(), val)
+	z.setHL(z.hl() - 1)
 	other := val + z.l
 	z.nf = val&0x80 != 0
 	if other < val {
@@ -555,80 +530,80 @@ func (z *Z80) daa() {
 	z.updateXY(z.a)
 }
 
-func (z *Z80) displace(base_addr uint16, offset byte) uint16 {
-	addr := base_addr
+func (z *Z80) displace(baseAddr uint16, offset byte) uint16 {
+	addr := baseAddr
 	if offset&0x80 == 0x80 {
 		addr += 0xff00 | uint16(offset)
 	} else {
 		addr += uint16(offset)
 	}
-	//addr := base_addr + uint16(displacement)
-	z.mem_ptr = addr
+	//addr := baseAddr + uint16(displacement)
+	z.memPtr = addr
 	return addr
 }
 
-func (z *Z80) process_interrupts() {
+func (z *Z80) processInterrupts() {
 	// "When an EI instruction is executed, any pending interrupt request
 	// is not accepted until after the instruction following EI is executed."
-	if z.iff_delay > 0 {
-		z.iff_delay -= 1
-		if z.iff_delay == 0 {
+	if z.iffDelay > 0 {
+		z.iffDelay -= 1
+		if z.iffDelay == 0 {
 			z.iff1 = true
 			z.iff2 = true
 		}
 		return
 	}
 
-	if z.nmi_pending {
-		z.nmi_pending = false
-		z.halted = false
+	if z.nmiPending {
+		z.nmiPending = false
+		z.isHalted = false
 		z.iff1 = false
-		z.inc_r()
+		z.incR()
 
-		z.cyc += 11
+		z.cycleCount += 11
 		z.call(0x0066)
 		return
 	}
 
-	if z.int_pending && z.iff1 {
-		z.int_pending = false
-		z.halted = false
+	if z.intPending && z.iff1 {
+		z.intPending = false
+		z.isHalted = false
 		z.iff1 = false
 		z.iff2 = false
-		z.inc_r()
+		z.incR()
 
-		switch z.interrupt_mode {
+		switch z.interruptMode {
 		case 0:
-			z.cyc += 11
-			z.exec_opcode(z.int_data)
+			z.cycleCount += 11
+			z.execOpcode(z.intData)
 		case 1:
-			z.cyc += 13
+			z.cycleCount += 13
 			z.call(0x38)
 		case 2:
-			z.cyc += 19
-			z.call(z.rw((uint16(z.i) << 8) | uint16(z.int_data)))
+			z.cycleCount += 19
+			z.call(z.rw((uint16(z.i) << 8) | uint16(z.intData)))
 		default:
-			log.Errorf("Unsupported interrupt mode %d\n", z.interrupt_mode)
+			log.Errorf("Unsupported interrupt mode %d\n", z.interruptMode)
 		}
 		return
 	}
 }
 
-// z80_gen_nmi function to call when an NMI is to be serviced
-func (z *Z80) z80_gen_nmi() {
-	z.nmi_pending = true
+// GenNMI function to call when an NMI is to be serviced
+func (z *Z80) GenNMI() {
+	z.nmiPending = true
 }
 
-// z80_gen_int function to call when an INT is to be serviced
-func (z *Z80) z80_gen_int(data byte) {
-	z.int_pending = true
-	z.int_data = data
+// GenINT function to call when an INT is to be serviced
+func (z *Z80) GenINT(data byte) {
+	z.intPending = true
+	z.intData = data
 }
 
 // executes a non-prefixed opcode
-func (z *Z80) exec_opcode(opcode byte) {
-	z.cyc += uint64(cyc_00[opcode])
-	z.inc_r()
+func (z *Z80) execOpcode(opcode byte) {
+	z.cycleCount += uint32(cycles00[opcode])
+	z.incR()
 
 	switch opcode {
 	case 0x7F:
@@ -737,110 +712,110 @@ func (z *Z80) exec_opcode(opcode byte) {
 		z.l = z.l // ld l,l
 
 	case 0x7E:
-		z.a = z.rb(z.get_hl()) // ld a,(hl)
+		z.a = z.rb(z.hl()) // ld a,(hl)
 	case 0x46:
-		z.b = z.rb(z.get_hl()) // ld b,(hl)
+		z.b = z.rb(z.hl()) // ld b,(hl)
 	case 0x4E:
-		z.c = z.rb(z.get_hl()) // ld c,(hl)
+		z.c = z.rb(z.hl()) // ld c,(hl)
 	case 0x56:
-		z.d = z.rb(z.get_hl()) // ld d,(hl)
+		z.d = z.rb(z.hl()) // ld d,(hl)
 	case 0x5E:
-		z.e = z.rb(z.get_hl()) // ld e,(hl)
+		z.e = z.rb(z.hl()) // ld e,(hl)
 	case 0x66:
-		z.h = z.rb(z.get_hl()) // ld h,(hl)
+		z.h = z.rb(z.hl()) // ld h,(hl)
 	case 0x6E:
-		z.l = z.rb(z.get_hl()) // ld l,(hl)
+		z.l = z.rb(z.hl()) // ld l,(hl)
 
 	case 0x77:
-		z.wb(z.get_hl(), z.a) // ld (hl),a
+		z.wb(z.hl(), z.a) // ld (hl),a
 	case 0x70:
-		z.wb(z.get_hl(), z.b) // ld (hl),b
+		z.wb(z.hl(), z.b) // ld (hl),b
 	case 0x71:
-		z.wb(z.get_hl(), z.c) // ld (hl),c
+		z.wb(z.hl(), z.c) // ld (hl),c
 	case 0x72:
-		z.wb(z.get_hl(), z.d) // ld (hl),d
+		z.wb(z.hl(), z.d) // ld (hl),d
 	case 0x73:
-		z.wb(z.get_hl(), z.e) // ld (hl),e
+		z.wb(z.hl(), z.e) // ld (hl),e
 	case 0x74:
-		z.wb(z.get_hl(), z.h) // ld (hl),h
+		z.wb(z.hl(), z.h) // ld (hl),h
 	case 0x75:
-		z.wb(z.get_hl(), z.l) // ld (hl),l
+		z.wb(z.hl(), z.l) // ld (hl),l
 
 	case 0x3E:
-		z.a = z.nextb() // ld a,*
+		z.a = z.nextB() // ld a,*
 	case 0x06:
-		z.b = z.nextb() // ld b,*
+		z.b = z.nextB() // ld b,*
 	case 0x0E:
-		z.c = z.nextb() // ld c,*
+		z.c = z.nextB() // ld c,*
 	case 0x16:
-		z.d = z.nextb() // ld d,*
+		z.d = z.nextB() // ld d,*
 	case 0x1E:
-		z.e = z.nextb() // ld e,*
+		z.e = z.nextB() // ld e,*
 	case 0x26:
-		z.h = z.nextb() // ld h,*
+		z.h = z.nextB() // ld h,*
 	case 0x2E:
-		z.l = z.nextb() // ld l,*
+		z.l = z.nextB() // ld l,*
 	case 0x36:
-		z.wb(z.get_hl(), z.nextb()) // ld (hl),*
+		z.wb(z.hl(), z.nextB()) // ld (hl),*
 	case 0x0A:
 		// ld a,(bc)
-		z.a = z.rb(z.get_bc())
-		z.mem_ptr = z.get_bc() + 1
+		z.a = z.rb(z.bc())
+		z.memPtr = z.bc() + 1
 	case 0x1A:
 		// ld a,(de)
-		z.a = z.rb(z.get_de())
-		z.mem_ptr = z.get_de() + 1
+		z.a = z.rb(z.de())
+		z.memPtr = z.de() + 1
 	case 0x3A:
 		// ld a,(**)
-		addr := z.nextw()
+		addr := z.nextW()
 		z.a = z.rb(addr)
-		z.mem_ptr = addr + 1
+		z.memPtr = addr + 1
 	case 0x02:
 		// ld (bc),a
-		z.wb(z.get_bc(), z.a)
-		z.mem_ptr = (uint16(z.a) << 8) | ((z.get_bc() + 1) & 0xFF)
+		z.wb(z.bc(), z.a)
+		z.memPtr = (uint16(z.a) << 8) | ((z.bc() + 1) & 0xFF)
 	case 0x12:
 		// ld (de),a
-		z.wb(z.get_de(), z.a)
-		z.mem_ptr = (uint16(z.a) << 8) | ((z.get_de() + 1) & 0xFF)
+		z.wb(z.de(), z.a)
+		z.memPtr = (uint16(z.a) << 8) | ((z.de() + 1) & 0xFF)
 	case 0x32:
 		// ld (**),a
-		addr := z.nextw()
+		addr := z.nextW()
 		z.wb(addr, z.a)
-		z.mem_ptr = (uint16(z.a) << 8) | ((addr + 1) & 0xFF)
+		z.memPtr = (uint16(z.a) << 8) | ((addr + 1) & 0xFF)
 	case 0x01:
-		z.set_bc(z.nextw()) // ld bc,**
+		z.setBC(z.nextW()) // ld bc,**
 	case 0x11:
-		z.set_de(z.nextw()) // ld de,**
+		z.setDE(z.nextW()) // ld de,**
 	case 0x21:
-		z.set_hl(z.nextw()) // ld hl,**
+		z.setHL(z.nextW()) // ld hl,**
 	case 0x31:
-		z.sp = z.nextw() // ld sp,**
+		z.sp = z.nextW() // ld sp,**
 
 	case 0x2A:
 		// ld hl,(**)
-		addr := z.nextw()
-		z.set_hl(z.rw(addr))
-		z.mem_ptr = addr + 1
+		addr := z.nextW()
+		z.setHL(z.rw(addr))
+		z.memPtr = addr + 1
 	case 0x22:
 		// ld (**),hl
-		addr := z.nextw()
-		z.ww(addr, z.get_hl())
-		z.mem_ptr = addr + 1
+		addr := z.nextW()
+		z.ww(addr, z.hl())
+		z.memPtr = addr + 1
 	case 0xF9:
-		z.sp = z.get_hl() // ld sp,hl
+		z.sp = z.hl() // ld sp,hl
 
 	case 0xEB:
 		// ex de,hl
-		de := z.get_de()
-		z.set_de(z.get_hl())
-		z.set_hl(de)
+		de := z.de()
+		z.setDE(z.hl())
+		z.setHL(de)
 	case 0xE3:
 		// ex (sp),hl
 		val := z.rw(z.sp)
-		z.ww(z.sp, z.get_hl())
-		z.set_hl(val)
-		z.mem_ptr = val
+		z.ww(z.sp, z.hl())
+		z.setHL(val)
+		z.memPtr = val
 	case 0x87:
 		z.a = z.addb(z.a, z.a, false) // add a,a
 	case 0x80:
@@ -856,9 +831,9 @@ func (z *Z80) exec_opcode(opcode byte) {
 	case 0x85:
 		z.a = z.addb(z.a, z.l, false) // add a,l
 	case 0x86:
-		z.a = z.addb(z.a, z.rb(z.get_hl()), false) // add a,(hl)
+		z.a = z.addb(z.a, z.rb(z.hl()), false) // add a,(hl)
 	case 0xC6:
-		z.a = z.addb(z.a, z.nextb(), false) // add a,*
+		z.a = z.addb(z.a, z.nextB(), false) // add a,*
 
 	case 0x8F:
 		z.a = z.addb(z.a, z.a, z.cf) // adc a,a
@@ -875,9 +850,9 @@ func (z *Z80) exec_opcode(opcode byte) {
 	case 0x8D:
 		z.a = z.addb(z.a, z.l, z.cf) // adc a,l
 	case 0x8E:
-		z.a = z.addb(z.a, z.rb(z.get_hl()), z.cf) // adc a,(hl)
+		z.a = z.addb(z.a, z.rb(z.hl()), z.cf) // adc a,(hl)
 	case 0xCE:
-		z.a = z.addb(z.a, z.nextb(), z.cf) // adc a,*
+		z.a = z.addb(z.a, z.nextB(), z.cf) // adc a,*
 
 	case 0x97:
 		z.a = z.subb(z.a, z.a, false) // sub a,a
@@ -894,9 +869,9 @@ func (z *Z80) exec_opcode(opcode byte) {
 	case 0x95:
 		z.a = z.subb(z.a, z.l, false) // sub a,l
 	case 0x96:
-		z.a = z.subb(z.a, z.rb(z.get_hl()), false) // sub a,(hl)
+		z.a = z.subb(z.a, z.rb(z.hl()), false) // sub a,(hl)
 	case 0xD6:
-		z.a = z.subb(z.a, z.nextb(), false) // sub a,*
+		z.a = z.subb(z.a, z.nextB(), false) // sub a,*
 
 	case 0x9F:
 		z.a = z.subb(z.a, z.a, z.cf) // sbc a,a
@@ -913,16 +888,16 @@ func (z *Z80) exec_opcode(opcode byte) {
 	case 0x9D:
 		z.a = z.subb(z.a, z.l, z.cf) // sbc a,l
 	case 0x9E:
-		z.a = z.subb(z.a, z.rb(z.get_hl()), z.cf) // sbc a,(hl)
+		z.a = z.subb(z.a, z.rb(z.hl()), z.cf) // sbc a,(hl)
 	case 0xDE:
-		z.a = z.subb(z.a, z.nextb(), z.cf) // sbc a,*
+		z.a = z.subb(z.a, z.nextB(), z.cf) // sbc a,*
 
 	case 0x09:
-		z.addhl(z.get_bc()) // add hl,bc
+		z.addhl(z.bc()) // add hl,bc
 	case 0x19:
-		z.addhl(z.get_de()) // add hl,de
+		z.addhl(z.de()) // add hl,de
 	case 0x29:
-		z.addhl(z.get_hl()) // add hl,hl
+		z.addhl(z.hl()) // add hl,hl
 	case 0x39:
 		z.addhl(z.sp) // add hl,sp
 
@@ -930,10 +905,10 @@ func (z *Z80) exec_opcode(opcode byte) {
 		z.iff1 = false
 		z.iff2 = false // di
 	case 0xFB:
-		z.iff_delay = 1 // ei
+		z.iffDelay = 1 // ei
 	case 0x00: // nop
 	case 0x76:
-		z.halted = true // halt
+		z.isHalted = true // halt
 		z.pc--
 	case 0x3C:
 		z.a = z.inc(z.a) // inc a
@@ -951,8 +926,8 @@ func (z *Z80) exec_opcode(opcode byte) {
 		z.l = z.inc(z.l) // inc l
 	case 0x34:
 		// inc (hl)
-		result := z.inc(z.rb(z.get_hl()))
-		z.wb(z.get_hl(), result)
+		result := z.inc(z.rb(z.hl()))
+		z.wb(z.hl(), result)
 	case 0x3D:
 		z.a = z.dec(z.a) // dec a
 	case 0x05:
@@ -969,22 +944,22 @@ func (z *Z80) exec_opcode(opcode byte) {
 		z.l = z.dec(z.l) // dec l
 	case 0x35:
 		// dec (hl)
-		result := z.dec(z.rb(z.get_hl()))
-		z.wb(z.get_hl(), result)
+		result := z.dec(z.rb(z.hl()))
+		z.wb(z.hl(), result)
 	case 0x03:
-		z.set_bc(z.get_bc() + 1) // inc bc
+		z.setBC(z.bc() + 1) // inc bc
 	case 0x13:
-		z.set_de(z.get_de() + 1) // inc de
+		z.setDE(z.de() + 1) // inc de
 	case 0x23:
-		z.set_hl(z.get_hl() + 1) // inc hl
+		z.setHL(z.hl() + 1) // inc hl
 	case 0x33:
 		z.sp = z.sp + 1 // inc sp
 	case 0x0B:
-		z.set_bc(z.get_bc() - 1) // dec bc
+		z.setBC(z.bc() - 1) // dec bc
 	case 0x1B:
-		z.set_de(z.get_de() - 1) // dec de
+		z.setDE(z.de() - 1) // dec de
 	case 0x2B:
-		z.set_hl(z.get_hl() - 1) // dec hl
+		z.setHL(z.hl() - 1) // dec hl
 	case 0x3B:
 		z.sp = z.sp - 1 // dec sp
 	case 0x27:
@@ -1000,13 +975,13 @@ func (z *Z80) exec_opcode(opcode byte) {
 		z.cf = true
 		z.nf = false
 		z.hf = false
-		z.updateXY(z.a | z.get_f())
+		z.updateXY(z.a | z.f())
 	case 0x3F:
 		// ccf
 		z.hf = z.cf
 		z.cf = !z.cf
 		z.nf = false
-		z.updateXY(z.a | z.get_f())
+		z.updateXY(z.a | z.f())
 	case 0x07:
 		// rlca (rotate left)
 		z.cf = z.a&0x80 != 0
@@ -1052,9 +1027,9 @@ func (z *Z80) exec_opcode(opcode byte) {
 	case 0xA5:
 		z.land(z.l) // and l
 	case 0xA6:
-		z.land(z.rb(z.get_hl())) // and (hl)
+		z.land(z.rb(z.hl())) // and (hl)
 	case 0xE6:
-		z.land(z.nextb()) // and *
+		z.land(z.nextB()) // and *
 
 	case 0xAF:
 		z.lxor(z.a) // xor a
@@ -1071,9 +1046,9 @@ func (z *Z80) exec_opcode(opcode byte) {
 	case 0xAD:
 		z.lxor(z.l) // xor l
 	case 0xAE:
-		z.lxor(z.rb(z.get_hl())) // xor (hl)
+		z.lxor(z.rb(z.hl())) // xor (hl)
 	case 0xEE:
-		z.lxor(z.nextb()) // xor *
+		z.lxor(z.nextB()) // xor *
 
 	case 0xB7:
 		z.lor(z.a) // or a
@@ -1090,9 +1065,9 @@ func (z *Z80) exec_opcode(opcode byte) {
 	case 0xB5:
 		z.lor(z.l) // or l
 	case 0xB6:
-		z.lor(z.rb(z.get_hl())) // or (hl)
+		z.lor(z.rb(z.hl())) // or (hl)
 	case 0xF6:
-		z.lor(z.nextb()) // or *
+		z.lor(z.nextB()) // or *
 
 	case 0xBF:
 		z.cp(z.a) // cp a
@@ -1109,12 +1084,12 @@ func (z *Z80) exec_opcode(opcode byte) {
 	case 0xBD:
 		z.cp(z.l) // cp l
 	case 0xBE:
-		z.cp(z.rb(z.get_hl())) // cp (hl)
+		z.cp(z.rb(z.hl())) // cp (hl)
 	case 0xFE:
-		z.cp(z.nextb()) // cp *
+		z.cp(z.nextB()) // cp *
 
 	case 0xC3:
-		z.jump(z.nextw()) // jm **
+		z.jump(z.nextW()) // jm **
 	case 0xC2:
 		z.cond_jump(!z.zf) // jp nz, **
 	case 0xCA:
@@ -1136,8 +1111,8 @@ func (z *Z80) exec_opcode(opcode byte) {
 		z.b--
 		z.cond_jr(z.b != 0) // djnz *
 	case 0x18:
-		z.pc += uint16(z.nextb()) // jr *
-		z.mem_ptr = z.pc
+		z.pc += uint16(z.nextB()) // jr *
+		z.memPtr = z.pc
 	case 0x20:
 		z.cond_jr(!z.zf) // jr nz, *
 	case 0x28:
@@ -1148,9 +1123,9 @@ func (z *Z80) exec_opcode(opcode byte) {
 		z.cond_jr(z.cf) // jr c, *
 
 	case 0xE9:
-		z.pc = z.get_hl() // jp (hl)
+		z.pc = z.hl() // jp (hl)
 	case 0xCD:
-		z.call(z.nextw()) // call
+		z.call(z.nextW()) // call
 
 	case 0xC4:
 		z.cond_call(!z.zf) // cnz
@@ -1206,42 +1181,42 @@ func (z *Z80) exec_opcode(opcode byte) {
 		z.call(0x38) // rst 7
 
 	case 0xC5:
-		z.pushw(z.get_bc()) // push bc
+		z.pushW(z.bc()) // push bc
 	case 0xD5:
-		z.pushw(z.get_de()) // push de
+		z.pushW(z.de()) // push de
 	case 0xE5:
-		z.pushw(z.get_hl()) // push hl
+		z.pushW(z.hl()) // push hl
 	case 0xF5:
-		z.pushw((uint16(z.a) << 8) | uint16(z.get_f())) // push af
+		z.pushW((uint16(z.a) << 8) | uint16(z.f())) // push af
 
 	case 0xC1:
-		z.set_bc(z.popw()) // pop bc
+		z.setBC(z.popW()) // pop bc
 	case 0xD1:
-		z.set_de(z.popw()) // pop de
+		z.setDE(z.popW()) // pop de
 	case 0xE1:
-		z.set_hl(z.popw()) // pop hl
+		z.setHL(z.popW()) // pop hl
 	case 0xF1:
 		// pop af
-		val := z.popw()
+		val := z.popW()
 		z.a = byte(val >> 8)
-		z.set_f(byte(val))
+		z.setF(byte(val))
 	case 0xDB:
 		// in a,(n)
-		port := (uint16(z.a) << 8) | uint16(z.nextb())
+		port := (uint16(z.a) << 8) | uint16(z.nextB())
 		z.a = z.core.IORead(port)
-		z.mem_ptr = port + 1 // (uint16(a) << 8) | (uint16(z.a+1) & 0x00ff)
+		z.memPtr = port + 1 // (uint16(a) << 8) | (uint16(z.a+1) & 0x00ff)
 	case 0xD3:
 		// out (n), a
-		port := uint16(z.nextb())
+		port := uint16(z.nextB())
 		z.core.IOWrite(port, z.a)
-		z.mem_ptr = ((port + 1) & 0x00ff) | (uint16(z.a) << 8)
+		z.memPtr = ((port + 1) & 0x00ff) | (uint16(z.a) << 8)
 	case 0x08:
 		// ex af,af'
 		a := z.a
-		f := z.get_f()
+		f := z.f()
 
 		z.a = z.a_
-		z.set_f(z.f_)
+		z.setF(z.f_)
 
 		z.a_ = a
 		z.f_ = f
@@ -1268,13 +1243,13 @@ func (z *Z80) exec_opcode(opcode byte) {
 		z.h_ = h
 		z.l_ = l
 	case 0xCB:
-		z.exec_opcode_cb(z.nextb())
+		z.execOpcodeCB(z.nextB())
 	case 0xED:
-		z.exec_opcode_ed(z.nextb())
+		z.execOpcodeED(z.nextB())
 	case 0xDD:
-		z.exec_opcode_ddfd(z.nextb(), &z.ix)
+		z.execOpcodeDDFD(z.nextB(), &z.ix)
 	case 0xFD:
-		z.exec_opcode_ddfd(z.nextb(), &z.iy)
+		z.execOpcodeDDFD(z.nextB(), &z.iy)
 
 	default:
 		log.Errorf("Unknown opcode %02X\n", opcode)

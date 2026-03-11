@@ -114,9 +114,9 @@ func (c *ComputerType) Reset() {
 
 }
 
-func (c *ComputerType) Do() uint64 {
+func (c *ComputerType) Do() uint32 {
 	ticks := c.cpu.RunInstruction()
-	c.cycles += ticks
+	c.cycles += uint64(ticks)
 	//pc := c.cpu.GetState().PC
 	//if pc >= 0xfea3 && pc <= 0xff25 {
 	//	c.cpu.DebugOutput()

@@ -6,8 +6,6 @@ import (
 	_ "embed"
 	"okemu/z80"
 	"okemu/z80/c99"
-
-	//	"okemu/z80/c99"
 	"strconv"
 	"strings"
 	"testing"
@@ -17,7 +15,7 @@ import (
 
 const (
 	ScanNone int = iota
-	ScanDescr
+	ScanDesc
 	ScanEvent
 	ScanRegs
 	ScanState
@@ -157,7 +155,7 @@ func parseTestExpected() {
 			}
 		}
 		if ScanNone == scanState {
-			scanState = ScanDescr
+			scanState = ScanDesc
 		} else if len(line) > 0 && line[0] == ' ' {
 			scanState = ScanEvent
 		}
@@ -168,7 +166,7 @@ func parseTestExpected() {
 		//}
 
 		switch scanState {
-		case ScanDescr:
+		case ScanDesc:
 			testName = line
 			scanState = ScanRegs
 		case ScanEvent:
@@ -214,12 +212,12 @@ func parseTestIn() {
 			continue
 		}
 		if ScanNone == scanState {
-			scanState = ScanDescr
+			scanState = ScanDesc
 		} else if line == "-1" {
 			scanState = ScanEnd
 		}
 		switch scanState {
-		case ScanDescr:
+		case ScanDesc:
 			testName = line
 			scanState = ScanRegs
 		case ScanRegs:
@@ -401,28 +399,21 @@ func TestZ80Fuse(t *testing.T) {
 	t.Logf("Fuse-type Z80 emulator test")
 	computer.cpu.Reset()
 	for _, name := range testNames {
-		z80Test := z80TestsIn[name]
-		//t.Logf("Run test: %s", name)
-		setComputerState(z80Test)
-		//if name == "edb9" {
-		//	t.Logf("stop test")
-		//}
-
+		setComputerState(z80TestsIn[name])
 		exp, exists := z80TestsExpected[name]
 		if !exists {
 			t.Errorf("Expected values for test %s not exists!", name)
 			return
 		}
-		cy := uint64(0)
+		cy := uint32(0)
 		for {
 			cy += computer.cpu.RunInstruction()
-			if cy >= uint64(exp.state.tStates) {
+			if cy >= uint32(exp.state.tStates) {
 				break
 			}
 		}
 		checkComputerState(t, name)
 	}
-
 }
 
 func setComputerState(test Z80TestIn) {
@@ -455,7 +446,7 @@ func setComputerState(test Z80TestIn) {
 		Halted:            test.state.isHalted,
 		DoDelayedDI:       false,
 		DoDelayedEI:       false,
-		CycleCounter:      0,
+		CycleCount:        0,
 		InterruptOccurred: false,
 		MemPtr:            test.registers.MemPtr,
 	}
