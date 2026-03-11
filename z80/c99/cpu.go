@@ -2,30 +2,6 @@ package c99
 
 import "okemu/z80"
 
-type MemIoRW interface {
-	// M1MemRead Read byte from memory for specified address @ M1 cycle
-	M1MemRead(addr uint16) byte
-	// MemRead Read byte from memory for specified address
-	MemRead(addr uint16) byte
-	// MemWrite Write byte to memory to specified address
-	MemWrite(addr uint16, val byte)
-	// IORead Read byte from specified port
-	IORead(port uint16) byte
-	// IOWrite Write byte to specified port
-	IOWrite(port uint16, val byte)
-}
-
-type CPUInterface interface {
-	// Reset CPU to initial state
-	Reset()
-	// RunInstruction Run single instruction, return number of CPU cycles
-	RunInstruction() byte
-	// GetState Get current CPU state
-	GetState() *Z80
-	// SetState Set current CPU state
-	SetState(state *Z80)
-}
-
 type Z80 struct {
 
 	// cycle count (t-states)
@@ -58,11 +34,11 @@ type Z80 struct {
 	int_pending                    bool
 	nmi_pending                    bool
 
-	core MemIoRW
+	core z80.MemIoRW
 }
 
 // New initializes a Z80 instance and return pointer to it
-func New(core MemIoRW) *Z80 {
+func New(core z80.MemIoRW) *Z80 {
 	z := Z80{}
 	z.core = core
 
@@ -129,28 +105,76 @@ func (z *Z80) RunInstruction() uint64 {
 	return z.cyc - pre
 }
 
+func (z *Z80) SetState(state *z80.Z80CPU) {
+	z.cyc = 0
+	z.a = state.A
+	z.b = state.B
+	z.c = state.C
+	z.d = state.D
+	z.e = state.E
+	z.h = state.H
+	z.l = state.L
+
+	z.a_ = state.AAlt
+	z.b_ = state.BAlt
+	z.c_ = state.CAlt
+	z.d_ = state.DAlt
+	z.e_ = state.EAlt
+	z.h_ = state.HAlt
+	z.l_ = state.LAlt
+
+	z.pc = state.PC
+	z.sp = state.SP
+	z.ix = state.IX
+	z.iy = state.IY
+	z.i = state.I
+	z.r = state.R
+	z.mem_ptr = state.MemPtr
+
+	z.sf = state.Flags.S
+	z.zf = state.Flags.Z
+	z.yf = state.Flags.Y
+	z.hf = state.Flags.H
+	z.xf = state.Flags.X
+	z.pf = state.Flags.P
+	z.nf = state.Flags.N
+	z.cf = state.Flags.C
+
+	z.f_ = state.FlagsAlt.GetFlags()
+
+	//z.iff_delay = 0
+	z.interrupt_mode = state.IMode
+	z.iff1 = state.Iff1
+	z.iff2 = state.Iff2
+	z.halted = state.Halted
+	z.int_pending = state.InterruptOccurred
+	z.nmi_pending = false
+	z.int_data = 0
+}
 func (z *Z80) GetState() *z80.Z80CPU {
 	return &z80.Z80CPU{
-		A:                 z.a,
-		B:                 z.b,
-		C:                 z.c,
-		D:                 z.d,
-		E:                 z.e,
-		H:                 z.h,
-		L:                 z.l,
-		AAlt:              z.a_,
-		BAlt:              z.b_,
-		CAlt:              z.c_,
-		DAlt:              z.d_,
-		EAlt:              z.e_,
-		HAlt:              z.h_,
-		LAlt:              z.l_,
-		IX:                z.ix,
-		IY:                z.iy,
-		I:                 z.i,
-		R:                 z.r,
-		SP:                z.sp,
-		PC:                z.pc,
+		A:    z.a,
+		B:    z.b,
+		C:    z.c,
+		D:    z.d,
+		E:    z.e,
+		H:    z.h,
+		L:    z.l,
+		AAlt: z.a_,
+		BAlt: z.b_,
+		CAlt: z.c_,
+		DAlt: z.d_,
+		EAlt: z.e_,
+		HAlt: z.h_,
+		LAlt: z.l_,
+
+		IX: z.ix,
+		IY: z.iy,
+		I:  z.i,
+		R:  z.r,
+		SP: z.sp,
+		PC: z.pc,
+
 		Flags:             z.getFlags(),
 		FlagsAlt:          z.getAltFlags(),
 		IMode:             z.interrupt_mode,
@@ -160,7 +184,8 @@ func (z *Z80) GetState() *z80.Z80CPU {
 		DoDelayedDI:       z.int_pending,
 		DoDelayedEI:       z.int_pending,
 		CycleCounter:      z.inst_cyc,
-		InterruptOccurred: false,
+		InterruptOccurred: z.int_pending,
+		MemPtr:            z.mem_ptr,
 	}
 }
 

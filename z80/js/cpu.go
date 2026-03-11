@@ -7,7 +7,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// const SpDefault uint16 = 0xffff
 type Z80 struct {
 	z80.Z80CPU
 	core z80.MemIoRW
@@ -18,7 +17,7 @@ func (z *Z80) Reset() {
 	z.R = 0
 	z.SP = 0xff
 	z.PC = 0
-	z.setFlagsRegister(0xff)
+	z.Flags.SetFlags(0xff)
 	// Interrupts disabled
 	z.IMode = 0
 	z.Iff1 = false
@@ -116,13 +115,15 @@ func New(memIoRW z80.MemIoRW) *Z80 {
 			HAlt: 0,
 			IX:   0,
 			IY:   0,
-			I:    0,
 
-			R:                 0,
-			SP:                0xffff,
-			PC:                0,
-			Flags:             z80.FlagsType{S: true, Z: true, Y: true, H: true, X: true, P: true, N: true, C: true},
-			FlagsAlt:          z80.FlagsType{S: true, Z: true, Y: true, H: true, X: true, P: true, N: true, C: true},
+			I:  0,
+			R:  0,
+			SP: 0xffff,
+			PC: 0,
+
+			Flags:    z80.FlagsType{S: true, Z: true, Y: true, H: true, X: true, P: true, N: true, C: true},
+			FlagsAlt: z80.FlagsType{S: true, Z: true, Y: true, H: true, X: true, P: true, N: true, C: true},
+
 			IMode:             0,
 			Iff1:              false,
 			Iff2:              false,
@@ -137,9 +138,7 @@ func New(memIoRW z80.MemIoRW) *Z80 {
 }
 
 func (z *Z80) RunInstruction() uint64 {
-
 	z.incR()
-
 	if !z.Halted {
 		// If the previous instruction was a DI or an EI,
 		//  we'll need to disable or enable interrupts
@@ -153,16 +152,13 @@ func (z *Z80) RunInstruction() uint64 {
 			z.DoDelayedEI = false
 			doingDelayedEi = true
 		}
-
 		// Read the byte at the PC and run the instruction it encodes.
 		opcode := z.core.M1MemRead(z.PC)
 		z.decodeInstruction(opcode)
-
 		// HALT does not increase the PC
 		if !z.Halted {
 			z.PC++
 		}
-
 		// Actually do the delayed interrupt disable/enable if we have one.
 		if doingDelayedDi {
 			z.Iff1 = false
@@ -171,19 +167,16 @@ func (z *Z80) RunInstruction() uint64 {
 			z.Iff1 = true
 			z.Iff2 = true
 		}
-
 		// And finally clear out the cycle counter for the next instruction
 		//  before returning it to the emulator core.
 		cycleCounter := z.CycleCounter
 		z.CycleCounter = 0
 		return uint64(cycleCounter)
 	}
-
 	// HALTED
 	// During HALT, NOPs are executed which is 4T
 	z.core.M1MemRead(z.PC) // HALT does a normal M1 fetch to keep the memory refresh active. The result is ignored (NOP).
 	return 4
-
 }
 
 // Simulates pulsing the processor's INT (or NMI) pin
@@ -346,65 +339,6 @@ func (z *Z80) alu8bit(opcode byte, operand byte) {
 	}
 }
 
-// getFlagsRegister return whole F register
-func (z *Z80) getFlagsRegister() byte {
-	return getFlags(&z.Flags)
-}
-
-// getFlagsRegister return whole F' register
-func (z *Z80) getFlagsPrimeRegister() byte {
-	return getFlags(&z.FlagsAlt)
-}
-
-func getFlags(f *z80.FlagsType) byte {
-	var flags byte = 0
-	if f.S {
-		flags |= 0x80
-	}
-	if f.Z {
-		flags |= 0x40
-	}
-	if f.Y {
-		flags |= 0x20
-	}
-	if f.H {
-		flags |= 0x10
-	}
-	if f.X {
-		flags |= 0x08
-	}
-	if f.P {
-		flags |= 0x04
-	}
-	if f.N {
-		flags |= 0x02
-	}
-	if f.C {
-		flags |= 0x01
-	}
-	return flags
-
-}
-
-func (z *Z80) setFlagsRegister(flags byte) {
-	setFlags(flags, &z.Flags)
-}
-
-func (z *Z80) setFlagsPrimeRegister(flags byte) {
-	setFlags(flags, &z.FlagsAlt)
-}
-
-func setFlags(flags byte, f *z80.FlagsType) {
-	f.S = flags&0x80 != 0
-	f.Z = flags&0x40 != 0
-	f.Y = flags&0x20 != 0
-	f.H = flags&0x10 != 0
-	f.X = flags&0x08 != 0
-	f.P = flags&0x04 != 0
-	f.N = flags&0x02 != 0
-	f.C = flags&0x01 != 0
-}
-
 // updateXYFlags Set flags X and Y based on result bits
 func (z *Z80) updateXYFlags(result byte) {
 	z.Flags.Y = result&0x20 != 0
@@ -458,7 +392,6 @@ func (z *Z80) doConditionalRelativeJump(condition bool) {
 		} else {
 			z.PC = z.PC + uint16(offset)
 		}
-
 	}
 	z.PC++
 }
@@ -491,14 +424,12 @@ func (z *Z80) doReset(address uint16) {
 // doAdd Handle ADD A, [operand] instructions.
 func (z *Z80) doAdd(operand byte) {
 	var result = uint16(z.A) + uint16(operand)
-
 	z.Flags.S = result&0x80 != 0
 	z.Flags.Z = result&0x00ff == 0
 	z.Flags.H = (((operand & 0x0f) + (z.A & 0x0f)) & 0x10) != 0
 	z.Flags.P = ((z.A & 0x80) == (operand & 0x80)) && (z.A&0x80 != byte(result&0x80))
 	z.Flags.N = false
 	z.Flags.C = result&0x0100 != 0
-
 	z.A = byte(result & 0xff)
 	z.updateXYFlags(z.A)
 }
@@ -510,14 +441,12 @@ func (z *Z80) doAdc(operand byte) {
 		add = 1
 	}
 	var result = uint16(z.A) + uint16(operand) + uint16(add)
-
 	z.Flags.S = result&0x80 != 0
 	z.Flags.Z = result&0x00ff == 0
 	z.Flags.H = (((operand & 0x0f) + (z.A & 0x0f) + add) & 0x10) != 0
 	z.Flags.P = ((z.A & 0x80) == (operand & 0x80)) && (z.A&0x80 != byte(result&0x80))
 	z.Flags.N = false
 	z.Flags.C = result&0x0100 != 0
-
 	z.A = byte(result & 0xff)
 	z.updateXYFlags(z.A)
 }
@@ -525,14 +454,12 @@ func (z *Z80) doAdc(operand byte) {
 // doSub Handle SUB A, [operand] instructions.
 func (z *Z80) doSub(operand byte) {
 	var result = uint16(z.A) - uint16(operand)
-
 	z.Flags.S = result&0x80 != 0
 	z.Flags.Z = result&0x00ff == 0
 	z.Flags.H = (((z.A & 0x0f) - (operand & 0x0f)) & 0x10) != 0
 	z.Flags.P = ((z.A & 0x80) != (operand & 0x80)) && ((z.A & 0x80) != byte(result&0x80))
 	z.Flags.N = true
 	z.Flags.C = result&0x0100 != 0
-
 	z.A = byte(result & 0xff)
 	z.updateXYFlags(z.A)
 }
@@ -544,14 +471,12 @@ func (z *Z80) doSbc(operand byte) {
 		sub = 1
 	}
 	var result = uint16(z.A) - uint16(operand) - uint16(sub)
-
 	z.Flags.S = result&0x80 != 0
 	z.Flags.Z = result&0x00ff == 0
 	z.Flags.H = (((z.A & 0x0f) - (operand & 0x0f) - sub) & 0x10) != 0
 	z.Flags.P = ((z.A & 0x80) != (operand & 0x80)) && (z.A&0x80 != byte(result&0x80))
 	z.Flags.N = true
 	z.Flags.C = result&0x0100 != 0
-
 	z.A = byte(result & 0xff)
 	z.updateXYFlags(z.A)
 }
@@ -601,13 +526,11 @@ func (z *Z80) doCp(operand byte) {
 func (z *Z80) doInc(operand byte) byte {
 	var result = uint16(operand) + 1
 	r8 := byte(result & 0xff)
-
 	z.Flags.S = r8&0x80 != 0
 	z.Flags.Z = r8 == 0
 	z.Flags.H = (operand & 0x0f) == 0x0f
 	z.Flags.P = operand == 0x7f
 	z.Flags.N = false
-
 	z.updateXYFlags(r8)
 	return r8
 }
@@ -616,13 +539,11 @@ func (z *Z80) doInc(operand byte) byte {
 func (z *Z80) doDec(operand byte) byte {
 	var result = uint16(operand) - 1
 	r8 := byte(result & 0xff)
-
 	z.Flags.S = r8&0x80 != 0
 	z.Flags.Z = r8 == 0
 	z.Flags.H = (operand & 0x0f) == 0x00
 	z.Flags.P = operand == 0x80
 	z.Flags.N = true
-
 	z.updateXYFlags(r8)
 	return r8
 }
@@ -636,11 +557,7 @@ func (z *Z80) doHlAdd(operand uint16) {
 	z.Flags.N = false
 	z.Flags.C = result > 0xffff
 	z.Flags.H = ((hl&0x0fff)+(operand&0x0fff))&0x1000 > 0
-
 	z.setHl(uint16(result))
-	//z.L = byte(result & 0xff)
-	//z.H = byte((result & 0xff00) >> 8)
-
 	z.updateXYFlags(z.H)
 }
 
@@ -649,21 +566,15 @@ func (z *Z80) doHlAdc(operand uint16) {
 	if z.Flags.C {
 		operand++
 	}
-
 	hl := z.hl()
 	result := uint32(hl) + uint32(operand)
-
 	z.Flags.S = (result & 0x8000) != 0
 	z.Flags.Z = result&0xffff == 0
 	z.Flags.H = (((hl & 0x0fff) + (operand & 0x0fff)) & 0x1000) != 0
 	z.Flags.P = ((hl & 0x8000) == (operand & 0x8000)) && (uint16(result&0x8000) != (hl & 0x8000))
 	z.Flags.N = false
 	z.Flags.C = result > 0xffff
-
 	z.setHl(uint16(result))
-	//z.L = byte(result & 0xff)
-	//z.H = byte((result & 0xff00) >> 8)
-
 	z.updateXYFlags(z.H)
 }
 
@@ -684,8 +595,6 @@ func (z *Z80) doHlSbc(operand uint16) {
 	z.Flags.C = result > 0xffff
 
 	z.setHl(uint16(result))
-	//z.L = byte(result & 0xff)
-	//z.H = byte((result & 0xff00) >> 8)
 
 	z.updateXYFlags(z.H)
 }
@@ -983,8 +892,7 @@ func (z *Z80) setWord(address uint16, value uint16) {
 
 func (z *Z80) debugOutput() {
 	log.Debugf("PC: %04X, AF: %04X, BC: %04X, DE: %04X, HL: %04X, SP: %04X, IX: %04X, IY: %04X, I: %02X, R: %02X",
-		z.PC, (uint16(z.A)<<8)|uint16(z.getFlagsRegister()), z.bc(), z.de(), z.hl(), z.SP,
-		z.IX, z.IY, z.I, z.R)
+		z.PC, (uint16(z.A)<<8)|uint16(z.Flags.GetFlags()), z.bc(), z.de(), z.hl(), z.SP, z.IX, z.IY, z.I, z.R)
 
 	log.Debugf("\t(%02X %02X %02X %02X), cyc: %d\n", z.core.MemRead(z.PC), z.core.MemRead(z.PC+1),
 		z.core.MemRead(z.PC+2), z.core.MemRead(z.PC+3), z.CycleCounter)

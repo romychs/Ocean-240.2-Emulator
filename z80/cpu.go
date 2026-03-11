@@ -70,5 +70,59 @@ type Z80CPU struct {
 	DoDelayedEI       bool
 	CycleCounter      byte
 	InterruptOccurred bool
+	MemPtr            uint16
 	//core              MemIoRW
+}
+
+func (f *FlagsType) GetFlags() byte {
+	var flags byte = 0
+	if f.S {
+		flags |= 0x80
+	}
+	if f.Z {
+		flags |= 0x40
+	}
+	if f.Y {
+		flags |= 0x20
+	}
+	if f.H {
+		flags |= 0x10
+	}
+	if f.X {
+		flags |= 0x08
+	}
+	if f.P {
+		flags |= 0x04
+	}
+	if f.N {
+		flags |= 0x02
+	}
+	if f.C {
+		flags |= 0x01
+	}
+	return flags
+}
+
+func GetFlags(f byte) FlagsType {
+	return FlagsType{
+		S: f&0x80 != 0,
+		Z: f&0x40 != 0,
+		Y: f&0x20 != 0,
+		H: f&0x10 != 0,
+		X: f&0x08 != 0,
+		P: f&0x04 != 0,
+		N: f&0x02 != 0,
+		C: f&0x01 != 0,
+	}
+}
+
+func (f *FlagsType) SetFlags(flags byte) {
+	f.S = flags&0x80 != 0
+	f.Z = flags&0x40 != 0
+	f.Y = flags&0x20 != 0
+	f.H = flags&0x10 != 0
+	f.X = flags&0x08 != 0
+	f.P = flags&0x04 != 0
+	f.N = flags&0x02 != 0
+	f.C = flags&0x01 != 0
 }

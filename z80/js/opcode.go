@@ -50,9 +50,9 @@ var instructions = []func(s *Z80){
 	// 0x08 : EX AF, AF'
 	0x08: func(s *Z80) {
 		s.A, s.AAlt = s.AAlt, s.A
-		temp := s.getFlagsRegister()
-		s.setFlagsRegister(s.getFlagsPrimeRegister())
-		s.setFlagsPrimeRegister(temp)
+		temp := s.Flags.GetFlags()
+		s.Flags.SetFlags(s.FlagsAlt.GetFlags()) //setFlagsRegister(s.getFlagsPrimeRegister())
+		s.FlagsAlt.SetFlags(temp)
 	},
 	// 0x09 : ADD HL, BC
 	0x09: func(s *Z80) {
@@ -583,7 +583,7 @@ var instructions = []func(s *Z80){
 	// 0xf1 : POP AF
 	0xF1: func(s *Z80) {
 		var result = s.PopWord()
-		s.setFlagsRegister(byte(result & 0xff))
+		s.Flags.SetFlags(byte(result & 0xff))
 		s.A = byte((result & 0xff00) >> 8)
 	},
 	// 0xf2 : JP P, nn
@@ -601,7 +601,7 @@ var instructions = []func(s *Z80){
 	},
 	// 0xf5 : PUSH AF
 	0xF5: func(s *Z80) {
-		s.pushWord(uint16(s.getFlagsRegister()) | (uint16(s.A) << 8))
+		s.pushWord(uint16(s.Flags.GetFlags()) | (uint16(s.A) << 8))
 	},
 	// 0xf6 : OR n
 	0xF6: func(s *Z80) {

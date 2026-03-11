@@ -10,10 +10,10 @@ func (z *Z80) exec_opcode_ddfd(opcode byte, iz *uint16) {
 		*iz = z.popw() // pop iz
 	case 0xE5:
 		z.pushw(*iz) // push iz
-
 	case 0xE9:
-		z.jump(*iz) // jp iz
-
+		// jp iz
+		z.pc = *iz
+		//z.jump(*iz)
 	case 0x09:
 		z.addiz(iz, z.get_bc()) // add iz,bc
 	case 0x19:
@@ -94,9 +94,13 @@ func (z *Z80) exec_opcode_ddfd(opcode byte, iz *uint16) {
 	case 0x2D:
 		*iz = (*iz & 0xff00) | uint16(z.dec(byte(*iz))) // dec izl
 	case 0x2A:
-		*iz = z.rw(z.nextw()) // ld iz,(**)
+		addr := z.nextw()
+		*iz = z.rw(addr) // ld iz,(**)
+		z.mem_ptr = addr + 1
 	case 0x22:
-		z.ww(z.nextw(), *iz) // ld (**),iz
+		addr := z.nextw()
+		z.ww(addr, *iz) // ld (**),iz
+		z.mem_ptr = addr + 1
 	case 0x21:
 		*iz = z.nextw() // ld iz,**
 	case 0x36:

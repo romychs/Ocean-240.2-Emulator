@@ -48,8 +48,12 @@ func (z *Z80) cond_ret(condition bool) {
 	}
 }
 
-func (z *Z80) jr(displacement byte) {
-	z.pc += uint16(displacement)
+func (z *Z80) jr(offset byte) {
+	if offset&0x80 != 0 {
+		z.pc += 0xFF00 | uint16(offset)
+	} else {
+		z.pc += uint16(offset)
+	}
 	z.mem_ptr = z.pc
 }
 
@@ -393,6 +397,33 @@ func (z *Z80) cpd() {
 	z.mem_ptr -= 2
 }
 
+var halfCarrySubTable = []bool{false, false, true, false, true, false, true, true}
+
+func (z *Z80) cpir() {
+	value := z.rb(z.get_hl())
+	diff := uint8(uint16(z.a) - uint16(value))
+	lookup := ((z.a & 0x08) >> 3) | ((value & 0x08) >> 2) | ((diff & 0x08) >> 1)
+	z.set_bc(z.get_bc() - 1)
+	z.hf = halfCarrySubTable[lookup]
+	z.pf = z.get_bc() != 0 // V=P
+	z.nf = true
+	z.zf = diff == 0
+	z.sf = diff&0x80 != 0
+	if z.hf {
+		diff--
+	}
+	z.xf = (diff & 0x08) != 0
+	z.yf = (diff & 0x02) != 0
+	if z.pf && !z.zf {
+		z.cyc += 5
+		z.pc -= 2
+		z.mem_ptr = z.pc + 1
+	} else {
+		z.mem_ptr++
+	}
+	z.set_hl(z.get_hl() + 1)
+}
+
 func (z *Z80) in_r_c(r *byte) {
 	*r = z.core.IORead(z.get_bc())
 	z.zf = *r == 0
@@ -405,32 +436,88 @@ func (z *Z80) in_r_c(r *byte) {
 func (z *Z80) ini() {
 	val := z.core.IORead(z.get_bc())
 	z.wb(z.get_hl(), val)
-	z.set_hl(z.get_hl() + 1)
-	z.b -= 1
-	z.zf = z.b == 0
-	z.nf = true
 	z.mem_ptr = z.get_bc() + 1
+	z.b--
+
+	other := val + z.c + 1
+	if other < val {
+		z.hf = true
+		z.cf = true
+	} else {
+		z.hf = false
+		z.cf = false
+	}
+	z.nf = val&0x80 != 0
+	z.pf = parity((other & 0x07) ^ z.b)
+	z.sf = z.b&0x80 != 0
+	z.zf = z.b == 0
+	z.updateXY(z.b)
+	z.set_hl(z.get_hl() + 1)
 }
 
 func (z *Z80) ind() {
-	z.ini()
-	z.set_hl(z.get_hl() - 2)
-	z.mem_ptr = z.get_bc() - 2
+	val := z.core.IORead(z.get_bc())
+	z.wb(z.get_hl(), val)
+	z.mem_ptr = z.get_bc() - 1
+	z.b--
+
+	other := val + z.c - 1
+	z.nf = val&0x80 != 0
+	if other < val {
+		z.hf = true
+		z.cf = true
+	} else {
+		z.hf = false
+		z.cf = false
+	}
+	z.pf = parity((other & 0x07) ^ z.b)
+
+	z.sf = z.b&0x80 != 0
+	z.zf = z.b == 0
+	z.updateXY(z.b)
+	z.set_hl(z.get_hl() - 1)
 }
 
 func (z *Z80) outi() {
-	z.core.IOWrite(z.get_bc(), z.rb(z.get_hl()))
-	z.set_hl(z.get_hl() + 1)
-	z.b -= 1
-	z.zf = z.b == 0
-	z.nf = true
+	val := z.rb(z.get_hl())
+	z.b--
 	z.mem_ptr = z.get_bc() + 1
+	z.core.IOWrite(z.get_bc(), val)
+	z.set_hl(z.get_hl() + 1)
+	other := val + z.l
+	z.nf = val&0x80 != 0
+	if other < val {
+		z.hf = true
+		z.cf = true
+	} else {
+		z.hf = false
+		z.cf = false
+	}
+	z.pf = parity((other & 0x07) ^ z.b)
+	z.zf = z.b == 0
+	z.sf = z.b&0x80 != 0
+	z.updateXY(z.b)
 }
 
 func (z *Z80) outd() {
-	z.outi()
-	z.set_hl(z.get_hl() - 2)
-	z.mem_ptr = z.get_bc() - 2
+	val := z.rb(z.get_hl())
+	z.b--
+	z.mem_ptr = z.get_bc() - 1
+	z.core.IOWrite(z.get_bc(), val)
+	z.set_hl(z.get_hl() - 1)
+	other := val + z.l
+	z.nf = val&0x80 != 0
+	if other < val {
+		z.hf = true
+		z.cf = true
+	} else {
+		z.hf = false
+		z.cf = false
+	}
+	z.pf = parity((other & 0x07) ^ z.b)
+	z.zf = z.b == 0
+	z.sf = z.b&0x80 != 0
+	z.updateXY(z.b)
 }
 
 func (z *Z80) daa() {
@@ -468,8 +555,14 @@ func (z *Z80) daa() {
 	z.updateXY(z.a)
 }
 
-func (z *Z80) displace(base_addr uint16, displacement byte) uint16 {
-	addr := base_addr + uint16(displacement)
+func (z *Z80) displace(base_addr uint16, offset byte) uint16 {
+	addr := base_addr
+	if offset&0x80 == 0x80 {
+		addr += 0xff00 | uint16(offset)
+	} else {
+		addr += uint16(offset)
+	}
+	//addr := base_addr + uint16(displacement)
 	z.mem_ptr = addr
 	return addr
 }
@@ -841,7 +934,7 @@ func (z *Z80) exec_opcode(opcode byte) {
 	case 0x00: // nop
 	case 0x76:
 		z.halted = true // halt
-
+		z.pc--
 	case 0x3C:
 		z.a = z.inc(z.a) // inc a
 	case 0x04:
@@ -907,13 +1000,13 @@ func (z *Z80) exec_opcode(opcode byte) {
 		z.cf = true
 		z.nf = false
 		z.hf = false
-		z.updateXY(z.a)
+		z.updateXY(z.a | z.get_f())
 	case 0x3F:
 		// ccf
 		z.hf = z.cf
 		z.cf = !z.cf
 		z.nf = false
-		z.updateXY(z.a)
+		z.updateXY(z.a | z.get_f())
 	case 0x07:
 		// rlca (rotate left)
 		z.cf = z.a&0x80 != 0
@@ -1044,6 +1137,7 @@ func (z *Z80) exec_opcode(opcode byte) {
 		z.cond_jr(z.b != 0) // djnz *
 	case 0x18:
 		z.pc += uint16(z.nextb()) // jr *
+		z.mem_ptr = z.pc
 	case 0x20:
 		z.cond_jr(!z.zf) // jr nz, *
 	case 0x28:
@@ -1133,15 +1227,14 @@ func (z *Z80) exec_opcode(opcode byte) {
 		z.set_f(byte(val))
 	case 0xDB:
 		// in a,(n)
-		port := uint16(z.nextb())
-		a := z.a
+		port := (uint16(z.a) << 8) | uint16(z.nextb())
 		z.a = z.core.IORead(port)
-		z.mem_ptr = (uint16(a) << 8) | uint16(z.a+1)
+		z.mem_ptr = port + 1 // (uint16(a) << 8) | (uint16(z.a+1) & 0x00ff)
 	case 0xD3:
 		// out (n), a
 		port := uint16(z.nextb())
 		z.core.IOWrite(port, z.a)
-		z.mem_ptr = (port + 1) | (uint16(z.a) << 8)
+		z.mem_ptr = ((port + 1) & 0x00ff) | (uint16(z.a) << 8)
 	case 0x08:
 		// ex af,af'
 		a := z.a
