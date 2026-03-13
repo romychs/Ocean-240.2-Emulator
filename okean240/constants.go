@@ -106,7 +106,7 @@ const RstTimerNo = 4
 // PicDd75a Port A (a0=0)
 const PicDd75a = 0x80
 
-// PIC_DD75B Port B (a0=1)
+// PicDd75b Port B (a0=1)
 const PicDd75b = 0x81
 
 /*
@@ -116,7 +116,7 @@ const PicDd75b = 0x81
 // UartDd72rd Serial data
 const UartDd72rd = 0xA0
 
-// UartDd72rr Serial status [RST,RQ_RX,RST_ERR,PAUSE,RX_EN,RX_RDY,TX_RDY]
+// UartDd72rr Serial enabled [RST,RQ_RX,RST_ERR,PAUSE,RX_EN,RX_RDY,TX_RDY]
 const UartDd72rr = 0xA1
 
 /*

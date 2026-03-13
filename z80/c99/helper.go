@@ -128,7 +128,7 @@ func carry(bitNo int, a uint16, b uint16, cy bool) bool {
 	return (carry & (1 << bitNo)) != 0
 }
 
-// returns the parity of byte: 0 if number of 1 bits in `val` is odd, else 1
+// parity returns the parity of byte: 0 if odd, else 1
 func parity(val byte) bool {
 	ones := byte(0)
 	for i := 0; i < 8; i++ {

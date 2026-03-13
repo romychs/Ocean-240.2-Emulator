@@ -9,6 +9,7 @@ import (
 	"okemu/okean240/pic"
 	"okemu/okean240/pit"
 	"okemu/okean240/usart"
+	"okemu/z80"
 	"os"
 
 	//"okemu/z80"
@@ -18,6 +19,13 @@ import (
 	"fyne.io/fyne/v2"
 	log "github.com/sirupsen/logrus"
 )
+
+const DefaultCPUFrequency = 2_500_000
+
+type Breakpoint struct {
+	addr    uint16
+	enabled bool
+}
 
 type ComputerType struct {
 	cpu           *c99.Z80
@@ -38,9 +46,15 @@ type ComputerType struct {
 	kbdBuffer     []byte
 	vShift        byte
 	hShift        byte
+	stepMode      bool
+	runMode       bool
+	bpEnabled     bool
+	breakpoints   [MaxBreakpoints]Breakpoint
 	//aOffset       uint16
+	cpuFrequency uint32
 }
 
+const MaxBreakpoints = 256
 const VRAMBlock0 = 3
 const VRAMBlock1 = 7
 const VidVsuBit = 0x80
@@ -57,7 +71,67 @@ type ComputerInterface interface {
 	PutCtrlKey(shortcut fyne.Shortcut)
 	SaveFloppy()
 	LoadFloppy()
+	CPUState() *z80.Z80CPU
+	SetCPUState(state *z80.Z80CPU)
+	StepMode() bool
+	SetStepMode(step bool)
+	ClearMemBreakpoints()
+	SetBreakpointsEnabled(enabled bool)
+	IsBreakpoint() bool
 	//Dump(start uint16, length uint16)
+}
+
+func (c *ComputerType) SetBreakpointsEnabled(enabled bool) {
+	c.bpEnabled = enabled
+}
+
+func (c *ComputerType) IsBreakpointsEnabled() bool {
+	return c.bpEnabled
+}
+
+func (c *ComputerType) SetBreakpoint(no uint16, addr uint16) {
+	if no > 0 && no <= MaxBreakpoints {
+		c.breakpoints[no-1].addr = addr
+		log.Debugf("BP[%d] SET AT PC=%04X", no, addr)
+	} else {
+		log.Warnf("Breakpoint number %d out or range!", no)
+	}
+}
+
+func (c *ComputerType) SetBreakpointEnabled(no uint16, enabled bool) {
+	if no <= MaxBreakpoints && no > 0 {
+		c.breakpoints[no-1].enabled = enabled
+	} else {
+		log.Warnf("Breakpoint number %d out or range!", no)
+	}
+}
+
+func (c *ComputerType) IsBreakpointEnabled(no uint16) bool {
+	if no <= MaxBreakpoints && no > 0 {
+		return c.breakpoints[no-1].enabled
+	}
+	log.Warnf("Breakpoint number %d out or range!", no)
+	return false
+}
+
+func (c *ComputerType) ClearMemBreakpoints() {
+	log.Warnf("Clearing memory bpEnabled unimplemented!")
+}
+
+func (c *ComputerType) SetStepMode(step bool) {
+	c.stepMode = step
+}
+
+func (c *ComputerType) IsStepMode() bool {
+	return c.stepMode
+}
+
+func (c *ComputerType) GetCPUState() *z80.Z80CPU {
+	return c.cpu.GetState()
+}
+
+func (c *ComputerType) SetCPUState(state *z80.Z80CPU) {
+	c.cpu.SetState(state)
 }
 
 func (c *ComputerType) M1MemRead(addr uint16) byte {
@@ -96,7 +170,14 @@ func New(cfg *config.OkEmuConfig) *ComputerType {
 	c.usart = usart.New()
 	c.pic = pic.New()
 	c.fdc = fdc.New(cfg)
-
+	c.cpuFrequency = DefaultCPUFrequency
+	c.bpEnabled = false
+	c.breakpoints = [256]Breakpoint{}
+	for i := range c.breakpoints {
+		c.breakpoints[i] = Breakpoint{}
+		c.breakpoints[i].enabled = false
+		c.breakpoints[i].addr = 0
+	}
 	return &c
 }
 
@@ -114,14 +195,32 @@ func (c *ComputerType) Reset() {
 
 }
 
-func (c *ComputerType) Do() uint32 {
+func (c *ComputerType) SetRunMode(run bool) {
+	c.runMode = run
+}
+
+func (c *ComputerType) IsRunMode() bool {
+	return c.runMode
+}
+
+func (c *ComputerType) Do() (uint32, uint16) {
+	// check breakpoints
+	if c.bpEnabled && c.runMode {
+		for no, bp := range c.breakpoints {
+			if bp.enabled && bp.addr == c.cpu.GetState().PC {
+				c.runMode = false
+				return 0, uint16(no + 1)
+			}
+		}
+	}
+
 	ticks := c.cpu.RunInstruction()
 	c.cycles += uint64(ticks)
 	//pc := c.cpu.GetState().PC
 	//if pc >= 0xfea3 && pc <= 0xff25 {
 	//	c.cpu.DebugOutput()
 	//}
-	return ticks
+	return ticks, 0
 }
 
 func (c *ComputerType) GetPixel(x uint16, y uint16) color.RGBA {
@@ -271,4 +370,12 @@ func (c *ComputerType) Dump(start uint16, length uint16) {
 	} else {
 		log.Debug("Memory dump saved successfully")
 	}
+}
+
+func (c *ComputerType) CPUFrequency() uint32 {
+	return c.cpuFrequency
+}
+
+func (c *ComputerType) SetCPUFrequency(frequency uint32) {
+	c.cpuFrequency = frequency
 }

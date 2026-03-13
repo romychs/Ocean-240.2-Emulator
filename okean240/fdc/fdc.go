@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/howeyc/crc16"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -38,17 +39,20 @@ const (
 
 // FDC Commands
 const (
-	CmdRestore         byte = 0x0
-	CmdSeek            byte = 0x1
-	CmdStep            byte = 0x2
-	CmdStepIn          byte = 0x5
-	CmdStepOut         byte = 0x7
-	CmdReadSector      byte = 0x8
-	CmdReadSectorMulti byte = 0x9
-	CmdWriteSector     byte = 0xa
-	CmdWriteTrack      byte = 0xf
-	CmdNoCommand       byte = 0xff
+	CmdRestore         = 0x0
+	CmdSeek            = 0x1
+	CmdStep            = 0x2
+	CmdStepIn          = 0x5
+	CmdStepOut         = 0x7
+	CmdReadSector      = 0x8
+	CmdReadSectorMulti = 0x9
+	CmdWriteSector     = 0xa
+	CmdReadAddress     = 0xc
+	CmdWriteTrack      = 0xf
+	CmdNoCommand       = 0xff
 )
+
+var interleave = []byte{1, 8, 6, 4, 2, 9, 7, 5, 3}
 
 const (
 	StatusTR0 = 0x04 // TR0 - Head at track 0
@@ -100,7 +104,10 @@ type FloppyDriveControllerInterface interface {
 	Sector() byte
 }
 
+//var slicer = []uint16{1, 8, 6, 4, 2, 9, 7, 5, 3}
+
 func getSectorNo(side byte, track byte, sector byte) uint16 {
+	//return (uint16(track)*18 + uint16(side)*9 + slicer[sector-1] - 1)
 	return uint16(side)*SectorsPerSide + uint16(track)*SectorPerTrack + uint16(sector) - 1
 }
 
@@ -122,6 +129,12 @@ func (f *FloppyDriveController) GetFloppy() byte {
 	// RD: 7-MOTST, 6-SSEL, 5,4-x , 3-DRSEL, 2-MOT1, 1-MOT0, 0-INT
 	floppy := f.intRq | (f.mot0 << 1) | (f.mot1 << 2) | ((^f.drive & 1) << 3) | (f.sideNo << 6) | (f.motSt << 7)
 	return floppy
+}
+
+var crcTable *crc16.Table
+
+func init() {
+	crcTable = crc16.MakeTable(0xffff)
 }
 
 func (f *FloppyDriveController) SetCmd(value byte) {
@@ -183,11 +196,21 @@ func (f *FloppyDriveController) SetCmd(value byte) {
 			f.drq = 0
 			f.status = StatusRNF
 		}
+	case CmdReadAddress:
+		log.Tracef("CMD ReadAddress %d", value)
+		f.trackBuffer = []byte{f.trackNo, f.sideNo, f.sectorNo, 2}
+
+		checksum := crc16.Checksum(f.trackBuffer, crcTable)
+		f.trackBuffer = append(f.trackBuffer, byte(checksum))
+		f.trackBuffer = append(f.trackBuffer, byte(checksum>>8))
+
+		f.drq = 1
+		f.status = 0x0
 	case CmdWriteTrack:
 		log.Tracef("CMD Write Track %x", f.trackNo)
+		f.drq = 1
 		f.status = 0x00
 		f.trackBuffer = []byte{}
-		f.drq = 1
 	default:
 		log.Errorf("Unknown CMD: %x VAL: %x", f.lastCmd, value&0xf)
 	}
@@ -201,7 +224,7 @@ func (f *FloppyDriveController) SetTrackNo(value byte) {
 	//log.Tracef("FDC Track: %d", value)
 	if value > TracksCount {
 		f.status |= 0x10 /// RNF
-		log.Error("Track not found!")
+		log.Errorf("Track %d not found!", value)
 	} else {
 		f.trackNo = value
 	}
@@ -282,7 +305,7 @@ func (f *FloppyDriveController) writeTrack() {
 
 func (f *FloppyDriveController) Data() byte {
 	switch f.lastCmd {
-	case CmdReadSector, CmdReadSectorMulti:
+	case CmdReadSector, CmdReadSectorMulti, CmdReadAddress:
 		if len(f.trackBuffer) > 0 {
 			f.drq = 1
 			f.data = f.trackBuffer[0]

@@ -103,6 +103,46 @@ func (f *FlagsType) GetFlags() byte {
 	return flags
 }
 
+func (f *FlagsType) GetFlagsStr() string {
+	flags := []byte{'-', '-', '-', '-', '-', '-', '-', '-'}
+	if f.S {
+		flags[0] = 'S'
+	}
+	if f.Z {
+		flags[1] = 'Z'
+	}
+	if f.Y {
+		flags[2] = '5'
+	}
+	if f.H {
+		flags[3] = 'H'
+	}
+	if f.X {
+		flags[4] = '3'
+	}
+	if f.P {
+		flags[5] = 'P'
+	}
+	if f.N {
+		flags[6] = 'N'
+	}
+	if f.C {
+		flags[7] = 'C'
+	}
+	return string(flags)
+}
+
+func (z *Z80CPU) IIFStr() string {
+	flags := []byte{'-', '-'}
+	if z.Iff1 {
+		flags[0] = '1'
+	}
+	if z.Iff2 {
+		flags[1] = '2'
+	}
+	return string(flags)
+}
+
 func GetFlags(f byte) FlagsType {
 	return FlagsType{
 		S: f&0x80 != 0,

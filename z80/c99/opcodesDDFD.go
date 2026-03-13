@@ -15,58 +15,58 @@ func (z *Z80) execOpcodeDDFD(opcode byte, iz *uint16) {
 		z.pc = *iz
 		//z.jump(*iz)
 	case 0x09:
-		z.addiz(iz, z.bc()) // add iz,bc
+		z.addIZ(iz, z.bc()) // add iz,bc
 	case 0x19:
-		z.addiz(iz, z.de()) // add iz,de
+		z.addIZ(iz, z.de()) // add iz,de
 	case 0x29:
-		z.addiz(iz, *iz) // add iz,iz
+		z.addIZ(iz, *iz) // add iz,iz
 	case 0x39:
-		z.addiz(iz, z.sp) // add iz,sp
+		z.addIZ(iz, z.sp) // add iz,sp
 
 	case 0x84:
-		z.a = z.addb(z.a, byte(*iz>>8), false) // add a,izh
+		z.a = z.addB(z.a, byte(*iz>>8), false) // add a,izh
 	case 0x85:
-		z.a = z.addb(z.a, byte(*iz), false) // add a,izl
+		z.a = z.addB(z.a, byte(*iz), false) // add a,izl
 	case 0x8C:
-		z.a = z.addb(z.a, byte(*iz>>8), z.cf) // adc a,izh
+		z.a = z.addB(z.a, byte(*iz>>8), z.cf) // adc a,izh
 	case 0x8D:
-		z.a = z.addb(z.a, byte(*iz), z.cf) // adc a,izl
+		z.a = z.addB(z.a, byte(*iz), z.cf) // adc a,izl
 	case 0x86:
-		z.a = z.addb(z.a, z.rb(z.displace(*iz, z.nextB())), false) // add a,(iz+*)
+		z.a = z.addB(z.a, z.rb(z.displace(*iz, z.nextB())), false) // add a,(iz+*)
 	case 0x8E:
-		z.a = z.addb(z.a, z.rb(z.displace(*iz, z.nextB())), z.cf) // adc a,(iz+*)
+		z.a = z.addB(z.a, z.rb(z.displace(*iz, z.nextB())), z.cf) // adc a,(iz+*)
 	case 0x96:
-		z.a = z.subb(z.a, z.rb(z.displace(*iz, z.nextB())), false) // sub (iz+*)
+		z.a = z.subB(z.a, z.rb(z.displace(*iz, z.nextB())), false) // sub (iz+*)
 	case 0x9E:
-		z.a = z.subb(z.a, z.rb(z.displace(*iz, z.nextB())), z.cf) // sbc (iz+*)
+		z.a = z.subB(z.a, z.rb(z.displace(*iz, z.nextB())), z.cf) // sbc (iz+*)
 	case 0x94:
-		z.a = z.subb(z.a, byte(*iz>>8), false) // sub izh
+		z.a = z.subB(z.a, byte(*iz>>8), false) // sub izh
 	case 0x95:
-		z.a = z.subb(z.a, byte(*iz), false) // sub izl
+		z.a = z.subB(z.a, byte(*iz), false) // sub izl
 	case 0x9C:
-		z.a = z.subb(z.a, byte(*iz>>8), z.cf) // sbc izh
+		z.a = z.subB(z.a, byte(*iz>>8), z.cf) // sbc izh
 	case 0x9D:
-		z.a = z.subb(z.a, byte(*iz), z.cf) // sbc izl
+		z.a = z.subB(z.a, byte(*iz), z.cf) // sbc izl
 
 	case 0xA6:
-		z.land(z.rb(z.displace(*iz, z.nextB()))) // and (iz+*)
+		z.lAnd(z.rb(z.displace(*iz, z.nextB()))) // and (iz+*)
 	case 0xA4:
-		z.land(byte(*iz >> 8)) // and izh
+		z.lAnd(byte(*iz >> 8)) // and izh
 	case 0xA5:
-		z.land(byte(*iz)) // and izl
+		z.lAnd(byte(*iz)) // and izl
 
 	case 0xAE:
-		z.lxor(z.rb(z.displace(*iz, z.nextB()))) // xor (iz+*)
+		z.lXor(z.rb(z.displace(*iz, z.nextB()))) // xor (iz+*)
 	case 0xAC:
-		z.lxor(byte(*iz >> 8)) // xor izh
+		z.lXor(byte(*iz >> 8)) // xor izh
 	case 0xAD:
-		z.lxor(byte(*iz)) // xor izl
+		z.lXor(byte(*iz)) // xor izl
 	case 0xB6:
-		z.lor(z.rb(z.displace(*iz, z.nextB()))) // or (iz+*)
+		z.lOr(z.rb(z.displace(*iz, z.nextB()))) // or (iz+*)
 	case 0xB4:
-		z.lor(byte(*iz >> 8)) // or izh
+		z.lOr(byte(*iz >> 8)) // or izh
 	case 0xB5:
-		z.lor(byte(*iz)) // or izl
+		z.lOr(byte(*iz)) // or izl
 	case 0xBE:
 		z.cp(z.rb(z.displace(*iz, z.nextB()))) // cp (iz+*)
 	case 0xBC:
@@ -196,7 +196,7 @@ func (z *Z80) execOpcodeDDFD(opcode byte, iz *uint16) {
 	case 0xCB:
 		addr := z.displace(*iz, z.nextB())
 		op := z.nextB()
-		z.exec_opcode_dcb(op, addr)
+		z.execOpcodeDcb(op, addr)
 	default:
 		// any other FD/DD opcode behaves as a non-prefixed opcode:
 		z.execOpcode(opcode)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image/color"
 	"okemu/config"
+	"okemu/debuger"
 	"okemu/logger"
 	"okemu/okean240"
 	"sync/atomic"
@@ -21,11 +22,14 @@ import (
 var Version = "v1.0.0"
 var BuildTime = "2026-03-01"
 
-//go:embed hex/format.hex
+//go:embed hex/m80.hex
 var serialBytes []byte
 
-//go:embed bin/FORMAT.COM
-var ramBytes []byte
+//go:embed bin/main.com
+var ramBytes1 []byte
+
+//go:embed bin/PLOT.BAS
+var ramBytes2 []byte
 
 var needReset = false
 var fullSpeed atomic.Bool
@@ -53,6 +57,8 @@ func main() {
 
 	go emulator(computer)
 	go screen(computer, raster, label)
+	go debuger.SetupTcpHandler(conf, computer)
+
 	(*w).ShowAndRun()
 }
 
@@ -106,14 +112,22 @@ func mainWindow(computer *okean240.ComputerType) (*fyne.Window, *canvas.Raster, 
 		widget.NewButton("Save Floppy", func() {
 			computer.SaveFloppy()
 		}),
-		widget.NewButton("RUN", func() {
-			computer.SetRamBytes(ramBytes)
+		widget.NewButton("RUN1", func() {
+			computer.SetRamBytes(ramBytes1)
+		}),
+		widget.NewButton("RUN2", func() {
+			computer.SetRamBytes(ramBytes2)
 		}),
 		widget.NewButton("DUMP", func() {
 			computer.Dump(0x100, 15000)
 		}),
 		widget.NewCheck("Full speed", func(b bool) {
 			fullSpeed.Store(b)
+			if b {
+				computer.SetCPUFrequency(50_000_000)
+			} else {
+				computer.SetCPUFrequency(2_500_000)
+			}
 		}),
 		widget.NewSeparator(),
 		widget.NewButton("Reset", func() {
@@ -170,14 +184,22 @@ func emulator(computer *okean240.ComputerType) {
 			// 1.5 MHz
 			computer.TimerClk()
 		}
-		if fullSpeed.Load() {
-			computer.Do()
-		} else {
-			if ticks >= nextClock {
-				nextClock = ticks + uint64(computer.Do())*ticksPerTact
+		if !computer.IsStepMode() || computer.IsRunMode() {
+			var bp uint16 = 0
+			if fullSpeed.Load() {
+				_, bp = computer.Do()
+			} else {
+				if ticks >= nextClock {
+					var t uint32
+					t, bp = computer.Do()
+					nextClock = ticks + uint64(t)*ticksPerTact
+				}
+			}
+			// Breakpoint hit
+			if bp > 0 {
+				debuger.BreakpointHit(bp)
 			}
 		}
-		//computer.Do()
 		if needReset {
 			computer.Reset()
 			needReset = false

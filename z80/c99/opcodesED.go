@@ -185,21 +185,21 @@ func (z *Z80) execOpcodeED(opcode byte) {
 		}
 
 	case 0x42:
-		z.sbchl(z.bc()) // sbc hl,bc
+		z.sbcHL(z.bc()) // sbc hl,bc
 	case 0x52:
-		z.sbchl(z.de()) // sbc hl,de
+		z.sbcHL(z.de()) // sbc hl,de
 	case 0x62:
-		z.sbchl(z.hl()) // sbc hl,hl
+		z.sbcHL(z.hl()) // sbc hl,hl
 	case 0x72:
-		z.sbchl(z.sp) // sbc hl,sp
+		z.sbcHL(z.sp) // sbc hl,sp
 	case 0x4A:
-		z.adchl(z.bc()) // adc hl,bc
+		z.adcHL(z.bc()) // adc hl,bc
 	case 0x5A:
-		z.adchl(z.de()) // adc hl,de
+		z.adcHL(z.de()) // adc hl,de
 	case 0x6A:
-		z.adchl(z.hl()) // adc hl,hl
+		z.adcHL(z.hl()) // adc hl,hl
 	case 0x7A:
-		z.adchl(z.sp) // adc hl,sp
+		z.adcHL(z.sp) // adc hl,sp
 	case 0x43:
 		// ld (**), bc
 		addr := z.nextW()
@@ -241,7 +241,7 @@ func (z *Z80) execOpcodeED(opcode byte) {
 		z.sp = z.rw(addr)
 		z.memPtr = addr + 1
 	case 0x44, 0x54, 0x64, 0x74, 0x4C, 0x5C, 0x6C, 0x7C:
-		z.a = z.subb(0, z.a, false) // neg
+		z.a = z.subB(0, z.a, false) // neg
 	case 0x46, 0x4e, 0x66, 0x6e:
 		z.interruptMode = 0 // im 0
 	case 0x56, 0x76:

@@ -40,26 +40,26 @@ func (z *Z80) execOpcodeCB(opcode byte) {
 		// rot[y] r[z]
 		switch y_ {
 		case 0:
-			*reg = z.cb_rlc(*reg)
+			*reg = z.cbRlc(*reg)
 		case 1:
-			*reg = z.cb_rrc(*reg)
+			*reg = z.cbRrc(*reg)
 		case 2:
-			*reg = z.cb_rl(*reg)
+			*reg = z.cbRl(*reg)
 		case 3:
-			*reg = z.cb_rr(*reg)
+			*reg = z.cbRr(*reg)
 		case 4:
-			*reg = z.cb_sla(*reg)
+			*reg = z.cbSla(*reg)
 		case 5:
-			*reg = z.cb_sra(*reg)
+			*reg = z.cbSra(*reg)
 		case 6:
-			*reg = z.cb_sll(*reg)
+			*reg = z.cbSll(*reg)
 		case 7:
-			*reg = z.cb_srl(*reg)
+			*reg = z.cbSrl(*reg)
 		}
 
 	case 1:
 		// BIT y, r[z]
-		z.cb_bit(*reg, y_)
+		z.cbBit(*reg, y_)
 
 		// in bit (hl), x/y flags are handled differently:
 		if z_ == 6 {
@@ -82,8 +82,8 @@ func (z *Z80) execOpcodeCB(opcode byte) {
 	}
 }
 
-// exec_opcode_dcb executes a displaced CB opcode (DDCB or FDCB)
-func (z *Z80) exec_opcode_dcb(opcode byte, addr uint16) {
+// execOpcodeDcb executes a displaced CB opcode (DDCB or FDCB)
+func (z *Z80) execOpcodeDcb(opcode byte, addr uint16) {
 	val := z.rb(addr)
 	result := byte(0)
 
@@ -97,26 +97,26 @@ func (z *Z80) exec_opcode_dcb(opcode byte, addr uint16) {
 		// rot[y] (iz+d)
 		switch y_ {
 		case 0:
-			result = z.cb_rlc(val)
+			result = z.cbRlc(val)
 		case 1:
-			result = z.cb_rrc(val)
+			result = z.cbRrc(val)
 		case 2:
-			result = z.cb_rl(val)
+			result = z.cbRl(val)
 		case 3:
-			result = z.cb_rr(val)
+			result = z.cbRr(val)
 		case 4:
-			result = z.cb_sla(val)
+			result = z.cbSla(val)
 		case 5:
-			result = z.cb_sra(val)
+			result = z.cbSra(val)
 		case 6:
-			result = z.cb_sll(val)
+			result = z.cbSll(val)
 		case 7:
-			result = z.cb_srl(val)
+			result = z.cbSrl(val)
 		}
 
 	case 1:
 		// bit y,(iz+d)
-		result = z.cb_bit(val, y_)
+		result = z.cbBit(val, y_)
 		z.updateXY(byte(addr >> 8))
 	case 2:
 		result = val & ^(1 << y_) // res y, (iz+d)

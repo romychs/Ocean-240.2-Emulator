@@ -68,10 +68,6 @@ type Z80TestIn struct {
 	memorySetup []MemorySetup
 }
 
-type Z80TestExpected struct {
-	expect Expect
-}
-
 type Expect struct {
 	events    []Event
 	registers Registers

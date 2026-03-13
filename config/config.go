@@ -9,6 +9,7 @@ import (
 
 const defaultMonitorFile = "rom/MON_v5.bin"
 const defaultCPMFile = "rom/CPM_v5.bin"
+const DefaultDebufPort = 10000
 
 type OkEmuConfig struct {
 	LogFile     string `yaml:"logFile"`
@@ -17,6 +18,8 @@ type OkEmuConfig struct {
 	CPMFile     string `yaml:"cpmFile"`
 	FloppyB     string `yaml:"floppyB"`
 	FloppyC     string `yaml:"floppyC"`
+	Host        string `yaml:"host"`
+	Port        int    `yaml:"port"`
 }
 
 var config *OkEmuConfig
@@ -59,7 +62,9 @@ func LoadConfig() {
 }
 
 func checkConfig(conf *OkEmuConfig) {
-
+	if conf.Host == "" {
+		conf.Host = "localhost"
+	}
 }
 
 func setDefaultConf(conf *OkEmuConfig) {
@@ -74,5 +79,9 @@ func setDefaultConf(conf *OkEmuConfig) {
 	}
 	if conf.CPMFile == "" {
 		conf.CPMFile = defaultCPMFile
+	}
+	if conf.Port < 80 || conf.Port > 65535 {
+		log.Infof("Port %d incorrect, using default: %d", conf.Port, DefaultDebufPort)
+		conf.Port = DefaultDebufPort
 	}
 }
