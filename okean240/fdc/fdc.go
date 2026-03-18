@@ -10,6 +10,7 @@ package fdc
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"okemu/config"
 	"os"
 	"slices"
@@ -21,6 +22,9 @@ import (
 
 // Floppy parameters
 const (
+	FloppyB = 0
+	FloppyC = 1
+
 	TotalDrives    = 2
 	FloppySizeK    = 720
 	SectorSize     = 512
@@ -84,8 +88,8 @@ type FloppyDriveController struct {
 	//curSector   *SectorType
 	bytePtr     uint16
 	trackBuffer []byte
-	floppyBFile string
-	floppyCFile string
+	floppyFile  []string
+	config      *config.OkEmuConfig
 }
 
 type FloppyDriveControllerInterface interface {
@@ -98,7 +102,7 @@ type FloppyDriveControllerInterface interface {
 	SetData(value byte)
 	Data() byte
 	Drq() byte
-	SaveFloppy()
+	SaveFloppy(drive byte)
 	GetSectorNo() uint16
 	Track() byte
 	Sector() byte
@@ -326,17 +330,21 @@ func (f *FloppyDriveController) Drq() byte {
 	return f.drq
 }
 
-func (f *FloppyDriveController) LoadFloppy() {
-	loadFloppy(&f.sectors[0], f.floppyBFile)
-	loadFloppy(&f.sectors[1], f.floppyCFile)
+func (f *FloppyDriveController) LoadFloppy(drive byte) error {
+	if drive < TotalDrives {
+		return loadFloppy(&f.sectors[drive], f.floppyFile[drive])
+	}
+	return errors.New("DriveNo " + strconv.Itoa(int(drive)) + " out of range")
 }
 
-func (f *FloppyDriveController) SaveFloppy() {
-	saveFloppy(&f.sectors[0], f.floppyBFile)
-	saveFloppy(&f.sectors[1], f.floppyCFile)
+func (f *FloppyDriveController) SaveFloppy(drive byte) error {
+	if drive < TotalDrives {
+		return saveFloppy(&f.sectors[drive], f.floppyFile[drive])
+	}
+	return errors.New("DriveNo " + strconv.Itoa(int(drive)) + " out of range")
 }
 
-func New(conf *config.OkEmuConfig) *FloppyDriveController {
+func NewFDC(conf *config.OkEmuConfig) *FloppyDriveController {
 	sec := [2][SizeInSectors]SectorType{}
 	// for each drive
 	for d := 0; d < TotalDrives; d++ {
@@ -346,20 +354,19 @@ func New(conf *config.OkEmuConfig) *FloppyDriveController {
 		}
 	}
 	return &FloppyDriveController{
-		sideNo:      0,
-		ddEn:        0,
-		init:        0,
-		drive:       0,
-		mot1:        0,
-		mot0:        0,
-		intRq:       0,
-		motSt:       0,
-		drq:         0,
-		lastCmd:     0xff,
-		sectors:     sec,
-		bytePtr:     0xffff,
-		floppyBFile: conf.FloppyB,
-		floppyCFile: conf.FloppyC,
+		sideNo:     0,
+		ddEn:       0,
+		init:       0,
+		drive:      0,
+		mot1:       0,
+		mot0:       0,
+		intRq:      0,
+		motSt:      0,
+		drq:        0,
+		lastCmd:    0xff,
+		sectors:    sec,
+		bytePtr:    0xffff,
+		floppyFile: []string{conf.FDC.FloppyB, conf.FDC.FloppyC},
 	}
 }
 
@@ -393,12 +400,12 @@ func (f *FloppyDriveController) Sector() byte {
 }
 
 // loadFloppy load floppy image to sector buffer from file
-func loadFloppy(sectors *[SizeInSectors]SectorType, fileName string) {
+func loadFloppy(sectors *[SizeInSectors]SectorType, fileName string) error {
 	log.Debugf("Load Floppy content from file %s.", fileName)
 	file, err := os.Open(fileName)
 	if err != nil {
 		log.Error(err)
-		return
+		return err
 	}
 
 	defer func(file *os.File) {
@@ -416,17 +423,19 @@ func loadFloppy(sectors *[SizeInSectors]SectorType, fileName string) {
 		}
 		if err != nil {
 			log.Error("Load floppy content failed:", err)
-			break
+			return err
 		}
 	}
+	return nil
 }
 
-func saveFloppy(sectors *[SizeInSectors]SectorType, fileName string) {
+// saveFloppy Save specified sectors to file with name fileName
+func saveFloppy(sectors *[SizeInSectors]SectorType, fileName string) error {
 	log.Debugf("Save Floppy to file %s.", fileName)
 	file, err := os.Create(fileName)
 	if err != nil {
 		log.Error(err)
-		return
+		return err
 	}
 	defer func(file *os.File) {
 		err := file.Close()
@@ -443,7 +452,8 @@ func saveFloppy(sectors *[SizeInSectors]SectorType, fileName string) {
 		}
 		if err != nil {
 			log.Error("Save floppy content failed:", err)
-			break
+			return err
 		}
 	}
+	return nil
 }

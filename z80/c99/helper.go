@@ -3,18 +3,24 @@ package c99
 import log "github.com/sirupsen/logrus"
 
 func (z *Z80) rb(addr uint16) byte {
+	z.memAccess[addr] = MemAccessRead
 	return z.core.MemRead(addr)
 }
 
 func (z *Z80) wb(addr uint16, val byte) {
+	z.memAccess[addr] = MemAccessWrite
 	z.core.MemWrite(addr, val)
 }
 
 func (z *Z80) rw(addr uint16) uint16 {
+	z.memAccess[addr] = MemAccessRead
+	z.memAccess[addr+1] = MemAccessRead
 	return (uint16(z.core.MemRead(addr+1)) << 8) | uint16(z.core.MemRead(addr))
 }
 
 func (z *Z80) ww(addr uint16, val uint16) {
+	z.memAccess[addr] = MemAccessWrite
+	z.memAccess[addr+1] = MemAccessWrite
 	z.core.MemWrite(addr, byte(val))
 	z.core.MemWrite(addr+1, byte(val>>8))
 }
@@ -30,13 +36,13 @@ func (z *Z80) popW() uint16 {
 }
 
 func (z *Z80) nextB() byte {
-	b := z.rb(z.pc)
+	b := z.core.MemRead(z.pc)
 	z.pc++
 	return b
 }
 
 func (z *Z80) nextW() uint16 {
-	w := z.rw(z.pc)
+	w := (uint16(z.core.MemRead(z.pc+1)) << 8) | uint16(z.core.MemRead(z.pc))
 	z.pc += 2
 	return w
 }

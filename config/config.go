@@ -12,14 +12,25 @@ const defaultCPMFile = "rom/CPM_v5.bin"
 const DefaultDebufPort = 10000
 
 type OkEmuConfig struct {
-	LogFile     string `yaml:"logFile"`
-	LogLevel    string `yaml:"logLevel"`
-	MonitorFile string `yaml:"monitorFile"`
-	CPMFile     string `yaml:"cpmFile"`
-	FloppyB     string `yaml:"floppyB"`
-	FloppyC     string `yaml:"floppyC"`
-	Host        string `yaml:"host"`
-	Port        int    `yaml:"port"`
+	LogFile     string         `yaml:"logFile"`
+	LogLevel    string         `yaml:"logLevel"`
+	MonitorFile string         `yaml:"monitorFile"`
+	CPMFile     string         `yaml:"cpmFile"`
+	FDC         FDCConfig      `yaml:"fdc"`
+	Debugger    DebuggerConfig `yaml:"debugger"`
+}
+
+type FDCConfig struct {
+	AutoLoadB bool   `yaml:"autoLoadB"`
+	AutoLoadC bool   `yaml:"autoLoadC"`
+	FloppyB   string `yaml:"floppyB"`
+	FloppyC   string `yaml:"floppyC"`
+}
+
+type DebuggerConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Host    string `yaml:"host"`
+	Port    int    `yaml:"port"`
 }
 
 var config *OkEmuConfig
@@ -62,8 +73,8 @@ func LoadConfig() {
 }
 
 func checkConfig(conf *OkEmuConfig) {
-	if conf.Host == "" {
-		conf.Host = "localhost"
+	if conf.Debugger.Host == "" {
+		conf.Debugger.Host = "localhost"
 	}
 }
 
@@ -80,8 +91,8 @@ func setDefaultConf(conf *OkEmuConfig) {
 	if conf.CPMFile == "" {
 		conf.CPMFile = defaultCPMFile
 	}
-	if conf.Port < 80 || conf.Port > 65535 {
-		log.Infof("Port %d incorrect, using default: %d", conf.Port, DefaultDebufPort)
-		conf.Port = DefaultDebufPort
+	if conf.Debugger.Port < 80 || conf.Debugger.Port > 65535 {
+		log.Infof("Port %d incorrect, using default: %d", conf.Debugger.Port, DefaultDebufPort)
+		conf.Debugger.Port = DefaultDebufPort
 	}
 }

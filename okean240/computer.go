@@ -3,8 +3,11 @@ package okean240
 import (
 	_ "embed"
 	"encoding/binary"
+	"encoding/json"
+	"fmt"
 	"image/color"
 	"okemu/config"
+	"okemu/debug"
 	"okemu/okean240/fdc"
 	"okemu/okean240/pic"
 	"okemu/okean240/pit"
@@ -22,39 +25,36 @@ import (
 
 const DefaultCPUFrequency = 2_500_000
 
-type Breakpoint struct {
-	addr    uint16
-	enabled bool
-}
-
 type ComputerType struct {
-	cpu           *c99.Z80
-	memory        Memory
-	ioPorts       [256]byte
-	cycles        uint64
-	dd17EnableOut bool
-	colorMode     bool
-	screenWidth   int
-	screenHeight  int
-	vRAM          *RamBlock
-	palette       byte
-	bgColor       byte
-	pit           *pit.I8253
-	usart         *usart.I8251
-	pic           *pic.I8259
-	fdc           *fdc.FloppyDriveController
-	kbdBuffer     []byte
-	vShift        byte
-	hShift        byte
-	stepMode      bool
-	runMode       bool
-	bpEnabled     bool
-	breakpoints   [MaxBreakpoints]Breakpoint
-	//aOffset       uint16
-	cpuFrequency uint32
+	cpu            *c99.Z80
+	memory         Memory
+	ioPorts        [256]byte
+	cycles         uint64
+	tstatesPartial uint64
+	dd17EnableOut  bool
+	colorMode      bool
+	screenWidth    int
+	screenHeight   int
+	vRAM           *RamBlock
+	palette        byte
+	bgColor        byte
+	pit            *pit.I8253
+	usart          *usart.I8251
+	pic            *pic.I8259
+	fdc            *fdc.FloppyDriveController
+	kbdBuffer      []byte
+	vShift         byte
+	hShift         byte
+	cpuFrequency   uint32
+	//
+	debugger *debug.Debugger
 }
 
-const MaxBreakpoints = 256
+type Snapshot struct {
+	CPU    *z80.CPU `json:"cpu,omitempty"`
+	Memory string   `json:"memory,omitempty"`
+}
+
 const VRAMBlock0 = 3
 const VRAMBlock1 = 7
 const VidVsuBit = 0x80
@@ -71,66 +71,15 @@ type ComputerInterface interface {
 	PutCtrlKey(shortcut fyne.Shortcut)
 	SaveFloppy()
 	LoadFloppy()
-	CPUState() *z80.Z80CPU
-	SetCPUState(state *z80.Z80CPU)
-	StepMode() bool
-	SetStepMode(step bool)
-	ClearMemBreakpoints()
-	SetBreakpointsEnabled(enabled bool)
-	IsBreakpoint() bool
-	//Dump(start uint16, length uint16)
+	CPUState() *z80.CPU
+	SetCPUState(state *z80.CPU)
 }
 
-func (c *ComputerType) SetBreakpointsEnabled(enabled bool) {
-	c.bpEnabled = enabled
-}
-
-func (c *ComputerType) IsBreakpointsEnabled() bool {
-	return c.bpEnabled
-}
-
-func (c *ComputerType) SetBreakpoint(no uint16, addr uint16) {
-	if no > 0 && no <= MaxBreakpoints {
-		c.breakpoints[no-1].addr = addr
-		log.Debugf("BP[%d] SET AT PC=%04X", no, addr)
-	} else {
-		log.Warnf("Breakpoint number %d out or range!", no)
-	}
-}
-
-func (c *ComputerType) SetBreakpointEnabled(no uint16, enabled bool) {
-	if no <= MaxBreakpoints && no > 0 {
-		c.breakpoints[no-1].enabled = enabled
-	} else {
-		log.Warnf("Breakpoint number %d out or range!", no)
-	}
-}
-
-func (c *ComputerType) IsBreakpointEnabled(no uint16) bool {
-	if no <= MaxBreakpoints && no > 0 {
-		return c.breakpoints[no-1].enabled
-	}
-	log.Warnf("Breakpoint number %d out or range!", no)
-	return false
-}
-
-func (c *ComputerType) ClearMemBreakpoints() {
-	log.Warnf("Clearing memory bpEnabled unimplemented!")
-}
-
-func (c *ComputerType) SetStepMode(step bool) {
-	c.stepMode = step
-}
-
-func (c *ComputerType) IsStepMode() bool {
-	return c.stepMode
-}
-
-func (c *ComputerType) GetCPUState() *z80.Z80CPU {
+func (c *ComputerType) GetCPUState() *z80.CPU {
 	return c.cpu.GetState()
 }
 
-func (c *ComputerType) SetCPUState(state *z80.Z80CPU) {
+func (c *ComputerType) SetCPUState(state *z80.CPU) {
 	c.cpu.SetState(state)
 }
 
@@ -146,8 +95,8 @@ func (c *ComputerType) MemWrite(addr uint16, val byte) {
 	c.memory.MemWrite(addr, val)
 }
 
-// New Builds new computer
-func New(cfg *config.OkEmuConfig) *ComputerType {
+// NewComputer Builds new computer
+func NewComputer(cfg *config.OkEmuConfig, deb *debug.Debugger) *ComputerType {
 	c := ComputerType{}
 	c.memory = Memory{}
 	c.memory.Init(cfg.MonitorFile, cfg.CPMFile)
@@ -155,6 +104,7 @@ func New(cfg *config.OkEmuConfig) *ComputerType {
 	c.cpu = c99.New(&c)
 
 	c.cycles = 0
+	c.tstatesPartial = 0
 	c.dd17EnableOut = false
 	c.screenWidth = 512
 	c.screenHeight = 256
@@ -169,58 +119,80 @@ func New(cfg *config.OkEmuConfig) *ComputerType {
 	c.pit = pit.New()
 	c.usart = usart.New()
 	c.pic = pic.New()
-	c.fdc = fdc.New(cfg)
+	c.fdc = fdc.NewFDC(cfg)
 	c.cpuFrequency = DefaultCPUFrequency
-	c.bpEnabled = false
-	c.breakpoints = [256]Breakpoint{}
-	for i := range c.breakpoints {
-		c.breakpoints[i] = Breakpoint{}
-		c.breakpoints[i].enabled = false
-		c.breakpoints[i].addr = 0
-	}
+	c.debugger = deb
 	return &c
 }
 
 func (c *ComputerType) Reset() {
 	c.cpu.Reset()
 	c.cycles = 0
-	//c.vShift = 0
-	//c.hShift = 0
-	//c.memory = Memory{}
-	//c.memory.Init(cfg.MonitorFile, cfg.CPMFile)
-	//c.dd17EnableOut = false
-	//c.screenWidth = 256
-	//c.screenHeight = 256
-	//c.vRAM = c.memory.allMemory[3]
-
+	c.tstatesPartial = 0
 }
 
-func (c *ComputerType) SetRunMode(run bool) {
-	c.runMode = run
+func (c *ComputerType) getContext() map[string]interface{} {
+	context := make(map[string]interface{})
+	s := c.cpu.GetState()
+	context["A"] = s.A
+	context["B"] = s.B
+	context["C"] = s.C
+	context["D"] = s.D
+	context["E"] = s.E
+	context["H"] = s.H
+	context["L"] = s.L
+	context["A'"] = s.AAlt
+	context["B'"] = s.BAlt
+	context["C'"] = s.CAlt
+	context["D'"] = s.DAlt
+	context["E'"] = s.EAlt
+	context["H'"] = s.HAlt
+	context["L'"] = s.LAlt
+	context["PC"] = s.PC
+	context["SP"] = s.SP
+	context["IX"] = s.IX
+	context["IY"] = s.IY
+	context["ZF"] = s.Flags.Z
+	context["SF"] = s.Flags.S
+	context["NF"] = s.Flags.N
+	context["PF"] = s.Flags.P
+	context["HF"] = s.Flags.H
+	context["YF"] = s.Flags.Y
+	context["XF"] = s.Flags.X
+	context["CF"] = s.Flags.C
+	context["BC"] = uint16(s.B)<<8 | uint16(s.C)
+	context["DE"] = uint16(s.D)<<8 | uint16(s.E)
+	context["HL"] = uint16(s.H)<<8 | uint16(s.L)
+	context["AF"] = uint16(s.A)<<8 | uint16(s.Flags.GetFlags())
+	return context
 }
 
-func (c *ComputerType) IsRunMode() bool {
-	return c.runMode
-}
-
-func (c *ComputerType) Do() (uint32, uint16) {
-	// check breakpoints
-	if c.bpEnabled && c.runMode {
-		for no, bp := range c.breakpoints {
-			if bp.enabled && bp.addr == c.cpu.GetState().PC {
-				c.runMode = false
-				return 0, uint16(no + 1)
+func (c *ComputerType) Do() (uint32, uint16, byte) {
+	ticks := uint32(0)
+	var memAccess *map[uint16]byte
+	if c.debugger.StepMode() {
+		if c.debugger.RunMode() || c.debugger.DoStep() {
+			if c.debugger.RunInst() > 0 {
+				// skip first instruction after run-mode activated
+				bpHit, bp := c.debugger.CheckBreakpoints(c.getContext())
+				if bpHit {
+					//c.debugger.SetRunMode(false)
+					return 0, bp, 0
+				}
+			}
+			c.debugger.SaveHistory(c.cpu.GetState())
+			ticks, memAccess = c.cpu.RunInstruction()
+			mHit, mAddr, mTyp := c.debugger.CheckMemBreakpoints(memAccess)
+			if mHit {
+				return ticks, mAddr, mTyp
 			}
 		}
+	} else {
+		ticks, memAccess = c.cpu.RunInstruction()
 	}
-
-	ticks := c.cpu.RunInstruction()
 	c.cycles += uint64(ticks)
-	//pc := c.cpu.GetState().PC
-	//if pc >= 0xfea3 && pc <= 0xff25 {
-	//	c.cpu.DebugOutput()
-	//}
-	return ticks, 0
+	c.tstatesPartial += uint64(ticks)
+	return ticks, 0, 0
 }
 
 func (c *ComputerType) GetPixel(x uint16, y uint16) color.RGBA {
@@ -303,6 +275,14 @@ func (c *ComputerType) Cycles() uint64 {
 	return c.cycles
 }
 
+func (c *ComputerType) ResetTStatesPartial() {
+	c.tstatesPartial = 0
+}
+
+func (c *ComputerType) TStatesPartial() uint64 {
+	return c.tstatesPartial
+}
+
 func (c *ComputerType) TimerClk() {
 	// DD70 KR580VI53 CLK0, CKL1 @ 1.5MHz
 	c.pit.Tick(0)
@@ -319,12 +299,12 @@ func (c *ComputerType) TimerClk() {
 	}
 }
 
-func (c *ComputerType) LoadFloppy() {
-	c.fdc.LoadFloppy()
+func (c *ComputerType) LoadFloppy(drive byte) error {
+	return c.fdc.LoadFloppy(drive)
 }
 
-func (c *ComputerType) SaveFloppy() {
-	c.fdc.SaveFloppy()
+func (c *ComputerType) SaveFloppy(drive byte) error {
+	return c.fdc.SaveFloppy(drive)
 }
 
 func (c *ComputerType) SetSerialBytes(bytes []byte) {
@@ -378,4 +358,52 @@ func (c *ComputerType) CPUFrequency() uint32 {
 
 func (c *ComputerType) SetCPUFrequency(frequency uint32) {
 	c.cpuFrequency = frequency
+}
+
+func (c *ComputerType) DebuggerState() string {
+	if c.debugger.StepMode() {
+		if c.debugger.RunMode() {
+			return "Run"
+		}
+		return "Step"
+	}
+	return "Off"
+}
+
+func (c *ComputerType) memoryAsHexStr() string {
+	res := ""
+	for addr := 0; addr <= 65535; addr++ {
+		res += fmt.Sprintf("%02X", c.memory.MemRead(uint16(addr)))
+	}
+	return res
+}
+
+func (c *ComputerType) SaveSnapshot(fn string) error {
+	// create snapshot file
+	file, err := os.Create(fn)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err := file.Close()
+		if err != nil {
+			log.Error(err)
+		}
+	}()
+	// take snapshot
+	s := Snapshot{
+		CPU:    c.cpu.GetState(),
+		Memory: c.memoryAsHexStr(),
+	}
+	// convert to JSON
+	b, err := json.Marshal(s)
+	if err != nil {
+		return err
+	}
+	// and save
+	err = binary.Write(file, binary.LittleEndian, b)
+	if err != nil {
+		return err
+	}
+	return nil
 }

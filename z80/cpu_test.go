@@ -413,7 +413,7 @@ func TestZ80Fuse(t *testing.T) {
 }
 
 func setComputerState(test Z80TestIn) {
-	state := z80.Z80CPU{
+	state := z80.CPU{
 		A:                 byte(test.registers.AF >> 8),
 		B:                 byte(test.registers.BC >> 8),
 		C:                 byte(test.registers.BC),

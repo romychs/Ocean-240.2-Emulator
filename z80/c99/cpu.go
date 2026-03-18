@@ -33,8 +33,14 @@ type Z80 struct {
 	intPending                     bool
 	nmiPending                     bool
 
-	core z80.MemIoRW
+	core      z80.MemIoRW
+	memAccess map[uint16]byte
 }
+
+const (
+	MemAccessRead  = 1
+	MemAccessWrite = 2
+)
 
 // New initializes a Z80 instance and return pointer to it
 func New(core z80.MemIoRW) *Z80 {
@@ -90,7 +96,9 @@ func New(core z80.MemIoRW) *Z80 {
 }
 
 // RunInstruction executes the next instruction in memory + handles interrupts
-func (z *Z80) RunInstruction() uint32 {
+func (z *Z80) RunInstruction() (uint32, *map[uint16]byte) {
+	z.memAccess = map[uint16]byte{}
+
 	pre := z.cycleCount
 	if z.isHalted {
 		z.execOpcode(0x00)
@@ -99,10 +107,10 @@ func (z *Z80) RunInstruction() uint32 {
 		z.execOpcode(opcode)
 	}
 	z.processInterrupts()
-	return z.cycleCount - pre
+	return z.cycleCount - pre, &z.memAccess
 }
 
-func (z *Z80) SetState(state *z80.Z80CPU) {
+func (z *Z80) SetState(state *z80.CPU) {
 	z.cycleCount = 0
 	z.a = state.A
 	z.b = state.B
@@ -148,8 +156,8 @@ func (z *Z80) SetState(state *z80.Z80CPU) {
 	z.nmiPending = false
 	z.intData = 0
 }
-func (z *Z80) GetState() *z80.Z80CPU {
-	return &z80.Z80CPU{
+func (z *Z80) GetState() *z80.CPU {
+	return &z80.CPU{
 		A:    z.a,
 		B:    z.b,
 		C:    z.c,
@@ -210,4 +218,8 @@ func (z *Z80) getAltFlags() z80.FlagsType {
 		N: z.f_&0x02 != 0,
 		C: z.f_&0x01 != 0,
 	}
+}
+
+func (z *Z80) PC() uint16 {
+	return z.pc
 }

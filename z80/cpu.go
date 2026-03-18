@@ -19,58 +19,58 @@ type CPUInterface interface {
 	// RunInstruction Run single instruction, return number of CPU cycles
 	RunInstruction() uint32
 	// GetState Get current CPU state
-	GetState() *Z80CPU
+	GetState() *CPU
 	// SetState Set current CPU state
-	SetState(state *Z80CPU)
+	SetState(state *CPU)
 	// DebugOutput out current CPU state
 	DebugOutput()
 }
 
 // FlagsType - Processor flags
 type FlagsType struct {
-	S bool
-	Z bool
-	Y bool
-	H bool
-	X bool
-	P bool
-	N bool
-	C bool
+	S bool `json:"s,omitempty"`
+	Z bool `json:"z,omitempty"`
+	Y bool `json:"y,omitempty"`
+	H bool `json:"h,omitempty"`
+	X bool `json:"x,omitempty"`
+	P bool `json:"p,omitempty"`
+	N bool `json:"n,omitempty"`
+	C bool `json:"c,omitempty"`
 }
 
 // Z80CPU - Processor state
-type Z80CPU struct {
-	A                 byte
-	B                 byte
-	C                 byte
-	D                 byte
-	E                 byte
-	H                 byte
-	L                 byte
-	AAlt              byte
-	BAlt              byte
-	CAlt              byte
-	DAlt              byte
-	EAlt              byte
-	HAlt              byte
-	LAlt              byte
-	IX                uint16
-	IY                uint16
-	I                 byte
-	R                 byte
-	SP                uint16
-	PC                uint16
-	Flags             FlagsType
-	FlagsAlt          FlagsType
-	IMode             byte
-	Iff1              bool
-	Iff2              bool
-	Halted            bool
-	DoDelayedDI       bool
-	DoDelayedEI       bool
-	CycleCount        uint32
-	InterruptOccurred bool
-	MemPtr            uint16
+type CPU struct {
+	A                 byte      `json:"a,omitempty"`
+	B                 byte      `json:"b,omitempty"`
+	C                 byte      `json:"c,omitempty"`
+	D                 byte      `json:"d,omitempty"`
+	E                 byte      `json:"e,omitempty"`
+	H                 byte      `json:"h,omitempty"`
+	L                 byte      `json:"l,omitempty"`
+	AAlt              byte      `json:"AAlt,omitempty"`
+	BAlt              byte      `json:"BAlt,omitempty"`
+	CAlt              byte      `json:"CAlt,omitempty"`
+	DAlt              byte      `json:"DAlt,omitempty"`
+	EAlt              byte      `json:"EAlt,omitempty"`
+	HAlt              byte      `json:"HAlt,omitempty"`
+	LAlt              byte      `json:"LAlt,omitempty"`
+	IX                uint16    `json:"IX,omitempty"`
+	IY                uint16    `json:"IY,omitempty"`
+	I                 byte      `json:"i,omitempty"`
+	R                 byte      `json:"r,omitempty"`
+	SP                uint16    `json:"SP,omitempty"`
+	PC                uint16    `json:"PC,omitempty"`
+	Flags             FlagsType `json:"flags"`
+	FlagsAlt          FlagsType `json:"flagsAlt"`
+	IMode             byte      `json:"IMode,omitempty"`
+	Iff1              bool      `json:"iff1,omitempty"`
+	Iff2              bool      `json:"iff2,omitempty"`
+	Halted            bool      `json:"halted,omitempty"`
+	DoDelayedDI       bool      `json:"doDelayedDI,omitempty"`
+	DoDelayedEI       bool      `json:"doDelayedEI,omitempty"`
+	CycleCount        uint32    `json:"cycleCount,omitempty"`
+	InterruptOccurred bool      `json:"interruptOccurred,omitempty"`
+	MemPtr            uint16    `json:"memPtr,omitempty"`
 	//core              MemIoRW
 }
 
@@ -132,7 +132,7 @@ func (f *FlagsType) GetFlagsStr() string {
 	return string(flags)
 }
 
-func (z *Z80CPU) IIFStr() string {
+func (z *CPU) IIFStr() string {
 	flags := []byte{'-', '-'}
 	if z.Iff1 {
 		flags[0] = '1'
@@ -165,4 +165,8 @@ func (f *FlagsType) SetFlags(flags byte) {
 	f.P = flags&0x04 != 0
 	f.N = flags&0x02 != 0
 	f.C = flags&0x01 != 0
+}
+
+func (z *CPU) GetPC() uint16 {
+	return z.PC
 }

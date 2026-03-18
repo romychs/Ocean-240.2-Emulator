@@ -1,4 +1,4 @@
-package debuger
+package listener
 
 import (
 	"bufio"
@@ -6,7 +6,11 @@ import (
 	"io"
 	"net"
 	"okemu/config"
+	"okemu/debug"
+	"okemu/debug/breakpoint"
 	"okemu/okean240"
+	"okemu/z80"
+	"okemu/z80/dis"
 	"os"
 	"strings"
 	//"okemu/logger"
@@ -14,16 +18,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 )
-
-const welcomeMessage = "Welcome to ZEsarUX remote command protocol (ZRCP)\nWrite help for available commands\n\ncommand> "
-const emptyResponse = "\ncommand> "
-const aboutResponse = "ZEsarUX remote command protocol"
-const getVersionResponse = "12.1"
-const getRegistersResponse = "PC=%04x SP=%04x AF=%04x BC=%04x HL=%04x DE=%04x IX=%04x IY=%04x AF'=%04x BC'=%04x HL'=%04x DE'=%04x I=%02x R=%02x  F=%s F'=%s MEMPTR=%04x IM0 IFF%s VPS: 0 MMU=00000000000000000000000000000000"
-const inCpuStepResponse = "\ncommand@cpu-step> "
-const getMachineResponse = "64K RAM, no ZX\n"
-const respErrorLoading = "ERROR loading file"
-const quitResponse = "Sayonara baby\n"
 
 // Receive messages, split to strings and parse
 func handleConnection(c net.Conn) {
@@ -40,6 +34,7 @@ func handleConnection(c net.Conn) {
 				break
 			} else {
 				log.Errorf("TCP error: %v", err)
+				debugger.SetStepMode(false)
 				return
 			}
 		}
@@ -50,8 +45,8 @@ func handleConnection(c net.Conn) {
 		}
 		//byteBuffer.WriteByte(b)
 	}
+	debugger.SetStepMode(false)
 	activeWriter = nil
-	//log.Trace("TCP Connection closed")
 	err := c.Close()
 	if err != nil {
 		log.Warnf("Can not close socket: %v", err)
@@ -69,7 +64,7 @@ func writeWelcomeMessage(writer *bufio.Writer) bool {
 
 func writeResponseMessage(writer *bufio.Writer, message string) bool {
 	prompt := emptyResponse
-	if computer.IsStepMode() {
+	if debugger.StepMode() {
 		prompt = inCpuStepResponse
 	}
 
@@ -86,13 +81,33 @@ func writeResponseMessage(writer *bufio.Writer, message string) bool {
 	return true
 }
 
+func writeMessage(writer *bufio.Writer, message string) bool {
+	_, err := writer.WriteString(message)
+	if err != nil {
+		log.Errorf("TCP error: %v", err)
+		return false
+	}
+	err = writer.Flush()
+	if err != nil {
+		log.Errorf("TCP error: %v", err)
+		return false
+	}
+	return true
+}
+
+// var
+var debugger *debug.Debugger
+var disassembler *dis.Disassembler
 var computer *okean240.ComputerType
 
 // SetupTcpHandler Setup TCP listener, handle connections
-func SetupTcpHandler(config *config.OkEmuConfig, comp *okean240.ComputerType) {
-	port := config.Host + ":" + strconv.Itoa(config.Port)
+func SetupTcpHandler(config *config.OkEmuConfig, debug *debug.Debugger, disasm *dis.Disassembler, comp *okean240.ComputerType) {
+	port := config.Debugger.Host + ":" + strconv.Itoa(config.Debugger.Port)
+	debugger = debug
+	disassembler = disasm
 	computer = comp
-	log.Infof("Serve TCP connections on %s", port)
+
+	log.Infof("Ready for debugger connections on %s", port)
 
 	l, err := net.Listen("tcp4", port)
 	if err != nil {
@@ -138,20 +153,19 @@ func HandleCommand(str string, writer *bufio.Writer) bool {
 
 	switch cmd {
 	case "cpu-step":
-		computer.Do()
-		writeResponseMessage(writer, "  "+fmt.Sprintf("%04X", computer.GetCPUState().PC))
+		debugger.SetDoStep(true) // computer.Do()
+		text := disassembler.Disassm(computer.GetCPUState().PC)
+		writeResponseMessage(writer, registersResponse(computer.GetCPUState())+" TSTATES: "+strconv.Itoa(int(computer.TStatesPartial()))+"\n"+text)
 	case "run":
-		_, e := writer.WriteString("Running until a breakpoint, key press or data sent, menu opening or other event\n")
-		if e != nil {
-			log.Warnf("Error writing to buffer: %v", e)
-		}
-		e = writer.Flush()
-		if e != nil {
-			log.Warnf("Error flushing the buffer: %v", e)
-		}
-		computer.SetRunMode(true)
+		writeMessage(writer, runUntilBPMessage)
+		debugger.SetRunMode(true)
+	case "disassemble":
+		writeResponseMessage(writer, disassemble(params))
 	case "get-tstates-partial":
-		writeResponseMessage(writer, strconv.FormatUint(computer.Cycles(), 10))
+		writeResponseMessage(writer, strconv.FormatUint(computer.TStatesPartial(), 10))
+	case "reset-tstates-partial":
+		computer.ResetTStatesPartial()
+		writeResponseMessage(writer, "")
 	case "close-all-menus":
 		writeResponseMessage(writer, "")
 	case "about":
@@ -159,17 +173,17 @@ func HandleCommand(str string, writer *bufio.Writer) bool {
 	case "get-version":
 		writeResponseMessage(writer, getVersionResponse)
 	case "get-registers":
-		writeResponseMessage(writer, registersResponse())
+		writeResponseMessage(writer, registersResponse(computer.GetCPUState()))
 	case "set-register":
 		writeResponseMessage(writer, setRegister(params))
 	case "hard-reset-cpu":
 		computer.Reset()
 		writeResponseMessage(writer, "")
 	case "enter-cpu-step":
-		computer.SetStepMode(true)
+		debugger.SetStepMode(true)
 		writeResponseMessage(writer, "")
 	case "exit-cpu-step":
-		computer.SetStepMode(false)
+		debugger.SetStepMode(false)
 		writeResponseMessage(writer, "")
 	case "set-debug-settings":
 		log.Debugf("Set debug settings to %s", params)
@@ -177,13 +191,15 @@ func HandleCommand(str string, writer *bufio.Writer) bool {
 	case "get-current-machine":
 		writeResponseMessage(writer, getMachineResponse)
 	case "clear-membreakpoints":
-		computer.ClearMemBreakpoints()
+		debugger.ClearMemBreakpoints()
 		writeResponseMessage(writer, "")
+	case "set-membreakpoint": // addr type size
+		writeResponseMessage(writer, SetMemBreakpoint(params))
 	case "enable-breakpoints":
-		computer.SetBreakpointsEnabled(true)
+		debugger.SetBreakpointsEnabled(true)
 		writeResponseMessage(writer, "")
 	case "disable-breakpoints":
-		computer.SetBreakpointsEnabled(false)
+		debugger.SetBreakpointsEnabled(false)
 		writeResponseMessage(writer, "")
 	case "enable-breakpoint":
 		writeResponseMessage(writer, setBreakpointState(params, true))
@@ -194,6 +210,9 @@ func HandleCommand(str string, writer *bufio.Writer) bool {
 	case "set-breakpoint":
 		// 1 PC=0010Bh
 		writeResponseMessage(writer, setBreakpoint(params))
+	case "set-breakpointpasscount":
+		setBreakpointPassCount(params)
+		writeResponseMessage(writer, "")
 	case "cpu-code-coverage":
 		//"enabled no"
 		writeResponseMessage(writer, "")
@@ -204,7 +223,8 @@ func HandleCommand(str string, writer *bufio.Writer) bool {
 		// "started yes"
 		// "ignrephalt yes"
 		// "ignrepldxr yes"
-		writeResponseMessage(writer, "")
+
+		writeResponseMessage(writer, doCpuHistory(params))
 	case "extended-stack":
 		// "enabled no"
 		// "enabled yes"
@@ -219,11 +239,106 @@ func HandleCommand(str string, writer *bufio.Writer) bool {
 		writeResponseMessage(writer, readMemory(params))
 	case "quit":
 		quit = true
+	case "snapshot-save":
+		writeResponseMessage(writer, snapshotSave(params))
+	case "set-breakpointaction":
+		// now do nothing
+		writeResponseMessage(writer, "")
 	default:
 		log.Debugf("Unhandled Command: %s", str)
 		writeResponseMessage(writer, "")
 	}
 	return !quit
+}
+
+func convertToUint16(s string) (uint16, error) {
+	v := strings.TrimSpace(strings.ToUpper(s))
+	base := 0
+	if strings.HasSuffix(v, "h") || strings.HasSuffix(v, "H") {
+		v = strings.TrimSuffix(v, "H")
+		v = strings.TrimSuffix(v, "h")
+		base = 16
+	}
+	a, e := strconv.ParseUint(v, base, 16)
+	return uint16(a), e
+}
+
+func SetMemBreakpoint(param string) string {
+	param = strings.TrimSpace(param)
+	params := strings.Split(param, " ")
+	if len(params) < 1 {
+		return "error, not enough parameters"
+	}
+	address, err := convertToUint16(params[0])
+	if err != nil {
+		return "error, illegal address: '" + params[0] + "'"
+	}
+	t := uint16(3)
+	// if has type
+	if len(params) > 1 {
+		t, err = convertToUint16(params[1])
+		if err != nil || t > 3 {
+			return "error, illegal access type: '" + params[1] + "'"
+		}
+	}
+
+	s := uint16(1)
+	if len(params) > 2 {
+		s, err = convertToUint16(params[2])
+		if err != nil {
+			return "error, illegal memory size: '" + params[2] + "'"
+		}
+	}
+	if debugger != nil {
+		debugger.SetMemBreakpoint(address, byte(t), s)
+	}
+	return ""
+}
+
+func doCpuHistory(param string) string {
+	param = strings.TrimSpace(param)
+	params := strings.Split(param, " ")
+	if len(params) == 0 {
+		return "error"
+	}
+	cmd := params[0]
+	switch cmd {
+	case "enabled":
+		if len(params) != 2 {
+			return "error"
+		}
+		debugger.SetCpuHistoryEnabled(params[1] == "yes")
+	case "clear":
+		debugger.CpuHistoryClear()
+	case "started":
+		if len(params) != 2 {
+			return "error"
+		}
+		debugger.SetCpuHistoryStarted(params[1] == "yes")
+	case "set-max-size":
+		if len(params) != 2 {
+			return "error"
+		}
+		size, err := strconv.Atoi(params[1])
+		if err != nil {
+			return "error"
+		}
+		debugger.SetCpuHistoryMaxSize(size)
+	case "get":
+		if len(params) != 2 {
+			return "error"
+		}
+		index, err := strconv.Atoi(params[1])
+		if err != nil {
+			return "error"
+		}
+		history := debugger.CpuHistory(index)
+		if history != nil {
+			return stateResponse(history)
+		}
+		return "ERROR: index out of range"
+	}
+	return ""
 }
 
 func loadBinary(param string) string {
@@ -246,9 +361,11 @@ func loadBinary(param string) string {
 		return respErrorLoading
 	}
 	if len(params) > 2 {
-		length, e = strconv.Atoi(params[1])
+		l, e := strconv.ParseInt(params[2], 0, 32)
 		if e != nil {
 			length = 0
+		} else {
+			length = int(l)
 		}
 	}
 	data, err := os.ReadFile(fn)
@@ -256,9 +373,10 @@ func loadBinary(param string) string {
 		log.Errorf("Error reading file: %v", err)
 		return respErrorLoading
 	}
-	if length != 0 && len(data) < length {
-		log.Errorf("File too short. Expected %d bytes, got %d", len(data), length)
-		return respErrorLoading
+	if length != 0 && len(data) != length {
+		log.Warnf("File size does not match the specified length. Expected %d bytes, got %d.", length, len(data))
+		//return respErrorLoading
+		length = len(data)
 	}
 	if length == 0 {
 		length = len(data)
@@ -289,8 +407,8 @@ func iifStr(iif1, iif2 bool) string {
 // registersResponse Build string
 // PC=%4x SP=%4x AF=%4x BC=%4x HL=%4x DE=%4x IX=%4x IY=%4x AF'=%4x BC'=%4x HL'=%4x DE'=%4x I=%2x
 // R=%2x  F=%s F'=%s MEMPTR=%4x IM0 IFF-- VPS: 0 MMU=00000000000000000000000000000000
-func registersResponse() string {
-	state := computer.GetCPUState()
+func registersResponse(state *z80.CPU) string {
+	//state := computer.GetCPUState()
 	resp := fmt.Sprintf(getRegistersResponse,
 		state.PC,
 		state.SP,
@@ -311,7 +429,43 @@ func registersResponse() string {
 		state.MemPtr,
 		iifStr(state.Iff1, state.Iff2),
 	)
-	log.Debug(resp)
+	log.Trace(resp)
+	return resp
+}
+
+func getNBytes(addr uint16, n uint16) string {
+	res := ""
+	for i := uint16(0); i < n; i++ {
+		b := computer.MemRead(addr + i)
+		res += fmt.Sprintf("%02X", b)
+	}
+	return res
+}
+
+// stateResponse build string, represent history state
+// PC=003a SP=ff46 AF=005c BC=174b HL=107f DE=0006 IX=ffff IY=5c3a AF'=0044 BC'=ffff HL'=ffff DE'=5cb9 I=3f R=78
+// IM0 IFF-- (PC)=2a785c23 (SP)=107f MMU=00000000000000000000000000000000
+func stateResponse(state *z80.CPU) string {
+	resp := fmt.Sprintf(getStateResponse,
+		state.PC,
+		state.SP,
+		toW(state.A, state.Flags.GetFlags()),
+		toW(state.B, state.C),
+		toW(state.H, state.L),
+		toW(state.D, state.E),
+		state.IX,
+		state.IY,
+		toW(state.AAlt, state.FlagsAlt.GetFlags()),
+		toW(state.BAlt, state.CAlt),
+		toW(state.HAlt, state.LAlt),
+		toW(state.DAlt, state.EAlt),
+		state.I,
+		state.R,
+		iifStr(state.Iff1, state.Iff2),
+		getNBytes(state.PC, 4),
+		getNBytes(state.SP, 2),
+	)
+	log.Trace(resp)
 	return resp
 }
 
@@ -320,12 +474,12 @@ func setRegister(param string) string {
 	params := strings.Split(param, "=")
 	if len(params) != 2 {
 		log.Errorf("Invalid set register parameter: %s", param)
-		return registersResponse()
+		return "error"
 	}
 	val, e := strconv.Atoi(params[1])
 	if e != nil {
 		log.Errorf("Invalid set register parameter value: %s", params[1])
-		return registersResponse()
+		return "error"
 	}
 	switch params[0] {
 	case "SP":
@@ -359,14 +513,14 @@ func setRegister(param string) string {
 		log.Errorf("Unsupported set register parameter: %s", param)
 	}
 	computer.SetCPUState(state)
-	return registersResponse()
+	return registersResponse(computer.GetCPUState())
 }
 
 func readMemory(param string) string {
 	params := strings.Split(param, " ")
 	if len(params) != 2 {
 		log.Errorf("Invalid read memory parameter: %s", param)
-		return registersResponse()
+		return "error" //registersResponse(computer.GetCPUState())
 	}
 	offset, e := strconv.Atoi(params[0])
 	if e != nil {
@@ -381,7 +535,6 @@ func readMemory(param string) string {
 	for i := 0; i < size; i++ {
 		resp += fmt.Sprintf("%02X", computer.MemRead(uint16(offset)+uint16(i)))
 	}
-	log.Tracef("ReadMemory[%d,%d]:\n%s", offset, size, resp)
 	return resp
 }
 
@@ -411,7 +564,7 @@ func getExtendedStack(param string) string {
 	for i := sp; i > spEnd; i -= 2 {
 		resp += fmt.Sprintf("%04XH default\n", computer.MemRead(i))
 	}
-	log.Debugf("Stack[%d,%d]:\n%s", sp, size, resp)
+	//log.Debugf("Stack[%d,%d]:\n%s", sp, size, resp)
 	return resp
 }
 
@@ -421,49 +574,94 @@ func setBreakpointState(param string, enable bool) string {
 		log.Errorf("Invalid breakpoint parameter: %s", param)
 		return ""
 	}
-	if enable && !computer.IsBreakpointsEnabled() {
+	if enable && !debugger.BreakpointsEnabled() {
 		return "Error. You must enable breakpoints first"
 	}
-	computer.SetBreakpointEnabled(uint16(no), enable)
+	debugger.SetBreakpointEnabled(uint16(no), enable)
 	return ""
 }
 
 func setBreakpoint(param string) string {
 	// 1 PC=0010Bh
 	params := strings.Split(param, " ")
-	if len(params) != 2 {
+	if len(params) < 2 {
 		log.Errorf("Invalid set breakpoint parameters: %s", param)
-		return ""
+		return "Error, invalid parameters"
 	}
-	no, e := strconv.Atoi(params[0])
-	if e != nil || no > okean240.MaxBreakpoints || no < 1 {
+	no, e := strconv.ParseUint(params[0], 0, 16)
+	if e != nil || no > breakpoint.MaxBreakpoints || no < 1 {
 		log.Errorf("Invalid breakpoint number: %s", params[0])
-		return ""
+		return "Error, invalid breakpoint number"
 	}
 
-	regv := strings.Split(params[1], "=")
-	if len(regv) != 2 {
-		log.Errorf("Invalid breakpoint parameter: %s", params[1])
-		return ""
-	}
-	addr, e := strconv.ParseUint(strings.TrimSuffix(regv[1], "h"), 16, 32)
-	if e != nil || addr < 0 || addr >= 65535 {
-		log.Errorf("Invalid breakpoint address: %s", regv[1])
-		return ""
-	}
-	if regv[0] == "PC" {
-		computer.SetBreakpoint(uint16(no), uint16(addr))
-	} else {
-		log.Errorf("Unsupported BP: %s", params[1])
+	e = debugger.SetBreakpoint(uint16(no), param[len(params[0]):])
+	if e != nil {
+		return "Error: " + e.Error()
 	}
 	return ""
 }
 
-func BreakpointHit(no uint16) {
+func typToString(typ uint8) string {
+	switch typ {
+	case 0:
+		return "D"
+	case 1:
+		return "R"
+	case 2:
+		return "W"
+	case 3:
+		return "R/W"
+	default:
+		return "x"
+	}
+}
+
+func BreakpointHit(number uint16, typ byte) {
 	if activeWriter != nil {
 		pc := computer.GetCPUState().PC
-		rep := fmt.Sprintf("Breakpoint fired: PC=%XH\n  %04X NOP", pc, pc)
+		res := disassembler.Disassm(pc)
+		msg := ""
+		if typ == 0 {
+			msg = debugger.BPExpression(number)
+		} else {
+			msg = fmt.Sprintf("MEM[%04X] %s", number, typToString(typ))
+		}
+		rep := fmt.Sprintf("Breakpoint fired: %s\n%s", msg, res)
 		log.Debug(rep)
 		writeResponseMessage(activeWriter, rep)
 	}
+}
+
+func setBreakpointPassCount(param string) {
+	params := strings.Split(param, " ")
+	if len(params) != 2 {
+		log.Errorf("Set breakpoint passCount failed, expected 2 params, got %d", len(params))
+	}
+	bpNo, err := strconv.Atoi(params[0])
+	if err != nil || bpNo < 0 || bpNo > breakpoint.MaxBreakpoints {
+		log.Errorf("Invalid BP no.: %v", err)
+	}
+	passCount, err := strconv.Atoi(params[1])
+	if err != nil || passCount < 0 || passCount > 65535 {
+		log.Errorf("Invalid BP passCount: %v", err)
+	}
+	debugger.SetBreakpointPassCount(uint16(bpNo), uint16(passCount))
+}
+
+func disassemble(param string) string {
+	addr, e := strconv.ParseUint(param, 0, 16)
+	if e != nil {
+		log.Errorf("Invalid disassemble address: %s", param)
+	}
+	res := disassembler.Disassm(uint16(addr))
+	log.Debug(res)
+	return res
+}
+
+func snapshotSave(params string) string {
+	e := computer.SaveSnapshot(strings.TrimSpace(params))
+	if e != nil {
+		return fmt.Sprintf("Error saving snapshot: %s", e)
+	}
+	return ""
 }
