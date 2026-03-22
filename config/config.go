@@ -10,21 +10,21 @@ import (
 const defaultMonitorFile = "rom/MON_v5.bin"
 const defaultCPMFile = "rom/CPM_v5.bin"
 const DefaultDebufPort = 10000
+const confFile = "okemu.yml"
 
 type OkEmuConfig struct {
 	LogFile     string         `yaml:"logFile"`
 	LogLevel    string         `yaml:"logLevel"`
 	MonitorFile string         `yaml:"monitorFile"`
 	CPMFile     string         `yaml:"cpmFile"`
-	FDC         FDCConfig      `yaml:"fdc"`
+	FDC         []FDCConfig    `yaml:"fdc"`
 	Debugger    DebuggerConfig `yaml:"debugger"`
 }
 
 type FDCConfig struct {
-	AutoLoadB bool   `yaml:"autoLoadB"`
-	AutoLoadC bool   `yaml:"autoLoadC"`
-	FloppyB   string `yaml:"floppyB"`
-	FloppyC   string `yaml:"floppyC"`
+	AutoLoad   bool   `yaml:"autoLoad"`
+	AutoSave   bool   `yaml:"autoSave"`
+	FloppyFile string `yaml:"floppyFile"`
 }
 
 type DebuggerConfig struct {
@@ -54,7 +54,6 @@ func LoadConfig() {
 	//	usage()
 	//}
 	// confFile := args[2]
-	confFile := "okemu.yml"
 
 	conf := OkEmuConfig{}
 	data, err := os.ReadFile(confFile)
@@ -94,5 +93,39 @@ func setDefaultConf(conf *OkEmuConfig) {
 	if conf.Debugger.Port < 80 || conf.Debugger.Port > 65535 {
 		log.Infof("Port %d incorrect, using default: %d", conf.Debugger.Port, DefaultDebufPort)
 		conf.Debugger.Port = DefaultDebufPort
+	}
+}
+
+func (c *OkEmuConfig) Clone() *OkEmuConfig {
+
+	fds := make([]FDCConfig, 2)
+	for n, fd := range c.FDC {
+		fds[n].FloppyFile = fd.FloppyFile
+		fds[n].AutoLoad = fd.AutoLoad
+		fds[n].AutoSave = fd.AutoSave
+	}
+
+	return &OkEmuConfig{
+		LogFile:     c.LogFile,
+		LogLevel:    c.LogLevel,
+		MonitorFile: c.MonitorFile,
+		CPMFile:     c.CPMFile,
+		FDC:         fds,
+		Debugger: DebuggerConfig{
+			Enabled: c.Debugger.Enabled,
+			Host:    c.Debugger.Host,
+			Port:    c.Debugger.Port,
+		},
+	}
+}
+
+func (c *OkEmuConfig) Save() {
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		log.Errorf("config error: %v", err)
+	}
+	err = os.WriteFile(confFile, data, 0600)
+	if err != nil {
+		log.Errorf("save config file: %v", err)
 	}
 }

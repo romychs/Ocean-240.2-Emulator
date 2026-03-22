@@ -1,15 +1,15 @@
-logFile: "okemu.log"
-logLevel: "info"
-
-monitorFile: "rom/MON_r8_9c6c6546.bin"
-cpmFile: "rom/CPM_r8_bc0695e4.bin"
-
+logFile: okemu.log
+logLevel: info
+monitorFile: rom/MON_r8_9c6c6546.bin
+cpmFile: rom/CPM_r8_bc0695e4.bin
 fdc:
-  autoLoadB: true
-  floppyB: "floppy/floppyB.okd"
-  autoLoadC: true
-  floppyC: "floppy/floppyC.okd"
-
+    - autoLoad: true
+      autoSave: true
+      floppyFile: floppy/floppyB.okd
+    - autoLoad: true
+      autoSave: true
+      floppyFile: floppy/floppyC.okd
 debugger:
-  enabled: true
-  port: 10001
+    enabled: true
+    host: localhost
+    port: 10001

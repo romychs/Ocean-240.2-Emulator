@@ -241,6 +241,8 @@ func HandleCommand(str string, writer *bufio.Writer) bool {
 		quit = true
 	case "snapshot-save":
 		writeResponseMessage(writer, snapshotSave(params))
+	case "snapshot-load":
+		writeResponseMessage(writer, snapshotLoad(params))
 	case "set-breakpointaction":
 		// now do nothing
 		writeResponseMessage(writer, "")
@@ -662,6 +664,14 @@ func snapshotSave(params string) string {
 	e := computer.SaveSnapshot(strings.TrimSpace(params))
 	if e != nil {
 		return fmt.Sprintf("Error saving snapshot: %s", e)
+	}
+	return ""
+}
+
+func snapshotLoad(params string) string {
+	e := computer.LoadSnapshot(strings.TrimSpace(params))
+	if e != nil {
+		return fmt.Sprintf("Error load snapshot: %s", e)
 	}
 	return ""
 }

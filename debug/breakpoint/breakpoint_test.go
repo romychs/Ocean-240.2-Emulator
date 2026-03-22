@@ -5,13 +5,14 @@ import (
 	"testing"
 )
 
-const expr1 = "PC=00100h && SP>=256"
+const expr1 = "PC=00100h and (NOT(B > 10)) and a != 5"
 const expr2 = "PC=00115h"
 const expr3 = "SP>=1332"
 
 var ctx = map[string]interface{}{
 	"PC": 0x100,
 	"A":  0x55,
+	"B":  5,
 	"SP": 0x200,
 }
 

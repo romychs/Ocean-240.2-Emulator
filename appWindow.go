@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"image/color"
+	"okemu/config"
 	"okemu/okean240"
 	"okemu/okean240/fdc"
 
@@ -17,7 +18,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-func mainWindow(computer *okean240.ComputerType) (*fyne.Window, *canvas.Raster, *widget.Label) {
+func mainWindow(computer *okean240.ComputerType, config *config.OkEmuConfig) (*fyne.Window, *canvas.Raster, *widget.Label) {
 	emulatorApp := app.New()
 	w := emulatorApp.NewWindow("Океан 240.2")
 	w.Canvas().SetOnTypedKey(
@@ -52,7 +53,7 @@ func mainWindow(computer *okean240.ComputerType) (*fyne.Window, *canvas.Raster, 
 	w.Resize(fyne.NewSize(600, 600))
 
 	vBox := container.NewVBox(
-		newToolbar(computer, w),
+		newToolbar(computer, w, emulatorApp, config),
 		centerRaster,
 		label,
 	)
@@ -62,45 +63,75 @@ func mainWindow(computer *okean240.ComputerType) (*fyne.Window, *canvas.Raster, 
 	return &w, raster, label
 }
 
-func newToolbar(c *okean240.ComputerType, w fyne.Window) *fyne.Container {
+func newToolbar(c *okean240.ComputerType, w fyne.Window, a fyne.App, config *config.OkEmuConfig) *fyne.Container {
 	hBox := container.NewHBox()
 	for d := 0; d < fdc.TotalDrives; d++ {
 		hBox.Add(widget.NewLabel(string(rune(66+d)) + ":"))
 		hBox.Add(widget.NewToolbar(
 			widget.NewToolbarAction(theme.DocumentSaveIcon(), func() {
-				err := c.SaveFloppy(fdc.FloppyB)
+				err := c.SaveFloppy(byte(d))
 				if err != nil {
 					dialog.ShowError(err, w)
 				}
 			}),
 			//widget.NewToolbarSpacer(),
 			widget.NewToolbarAction(theme.FolderOpenIcon(), func() {
-				err := c.SaveFloppy(fdc.FloppyC)
+				err := c.LoadFloppy(byte(d))
 				if err != nil {
 					dialog.ShowError(err, w)
 				}
 			}),
 		))
+		hBox.Add(widget.NewSeparator())
 	}
+
+	hBox.Add(widget.NewButtonWithIcon("1", theme.DownloadIcon(), func() {
+		c.SetRamBytes(ramBytes1)
+	}))
 	hBox.Add(widget.NewSeparator())
-	hBox.Add(widget.NewButtonWithIcon("Ctrl+C", theme.LogoutIcon(), func() {
+	hBox.Add(widget.NewButtonWithIcon("2", theme.DownloadIcon(), func() {
+		c.SetRamBytes(ramBytes2)
+	}))
+	hBox.Add(widget.NewSeparator())
+	hBox.Add(widget.NewButtonWithIcon("^C", theme.MediaStopIcon(), func() {
 		c.PutCtrlKey(0x03)
 	}))
 	hBox.Add(widget.NewSeparator())
-	bNorm := widget.NewButtonWithIcon("", theme.MediaPlayIcon(), func() {
-		fullSpeed.Store(false)
-		c.SetCPUFrequency(2_500_000)
-		//bNorm.Disable()
+	cbFreq := widget.NewCheck("Fmax", func(checked bool) {
+		fullSpeed.Store(checked)
+		if checked {
+			c.SetCPUFrequency(25_000_000)
+		} else {
+			c.SetCPUFrequency(2_500_000)
+		}
+	})
+	//bNorm := widget.NewButtonWithIcon("", theme.MediaPlayIcon(), func() {
+	//	fullSpeed.Store(false)
+	//	c.SetCPUFrequency(2_500_000)
+	//	//bNorm.Disable()
+	//
+	//})
+	//bFast := widget.NewButtonWithIcon("", theme.MediaFastForwardIcon(), func() {
+	//	fullSpeed.Store(true)
+	//	c.SetCPUFrequency(50_000_000)
+	//	bNorm.Enable()
+	//	//bFast.Disable()
+	//})
 
-	})
-	bFast := widget.NewButtonWithIcon("", theme.MediaFastForwardIcon(), func() {
-		fullSpeed.Store(true)
-		c.SetCPUFrequency(50_000_000)
-		bNorm.Enable()
-		//bFast.Disable()
-	})
-	hBox.Add(bNorm)
-	hBox.Add(bFast)
+	hBox.Add(cbFreq)
+	//hBox.Add(bFast)
+	hBox.Add(widget.NewSeparator())
+	hBox.Add(widget.NewButtonWithIcon("", theme.SettingsIcon(), func() {
+		cfg := config.Clone()
+		d := dialog.NewCustomConfirm("OK-Emu settings", "Save", "Cancel", settingsDialog(cfg), func(b bool) {
+			if b {
+				cfg.Save()
+			}
+		}, w)
+		d.Resize(fyne.NewSize(450, 360))
+		//w.SetContent(settings.NewSettings().LoadAppearanceScreen(w))
+		d.Show()
+	}))
 	hBox.Add(layout.NewSpacer())
 	hBox.Add(widget.NewButtonWithIcon("Reset", theme.MediaReplayIcon(), func() {
 		needReset = true

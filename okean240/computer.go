@@ -14,6 +14,7 @@ import (
 	"okemu/okean240/usart"
 	"okemu/z80"
 	"os"
+	"strconv"
 
 	//"okemu/z80"
 	"okemu/z80/c99"
@@ -48,6 +49,7 @@ type ComputerType struct {
 	cpuFrequency   uint32
 	//
 	debugger *debug.Debugger
+	config   *config.OkEmuConfig
 }
 
 type Snapshot struct {
@@ -98,6 +100,7 @@ func (c *ComputerType) MemWrite(addr uint16, val byte) {
 // NewComputer Builds new computer
 func NewComputer(cfg *config.OkEmuConfig, deb *debug.Debugger) *ComputerType {
 	c := ComputerType{}
+	c.config = cfg
 	c.memory = Memory{}
 	c.memory.Init(cfg.MonitorFile, cfg.CPMFile)
 
@@ -379,17 +382,6 @@ func (c *ComputerType) memoryAsHexStr() string {
 }
 
 func (c *ComputerType) SaveSnapshot(fn string) error {
-	// create snapshot file
-	file, err := os.Create(fn)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		err := file.Close()
-		if err != nil {
-			log.Error(err)
-		}
-	}()
 	// take snapshot
 	s := Snapshot{
 		CPU:    c.cpu.GetState(),
@@ -401,9 +393,59 @@ func (c *ComputerType) SaveSnapshot(fn string) error {
 		return err
 	}
 	// and save
-	err = binary.Write(file, binary.LittleEndian, b)
+	err = os.WriteFile(fn, b, 0644)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func (c *ComputerType) LoadSnapshot(fn string) error {
+	// read snapshot file
+	b, err := os.ReadFile(fn)
+	if err != nil {
+		return err
+	}
+	// unmarshal from JSON
+	var result Snapshot
+	err = json.Unmarshal(b, &result)
+	if err != nil {
+		return err
+	}
+	c.cpu.SetState(result.CPU)
+	return c.restoreMemoryFromHex(result.Memory)
+}
+
+func (c *ComputerType) restoreMemoryFromHex(memory string) error {
+	for addr := 0; addr <= 65535; addr++ {
+		b, e := strconv.ParseUint(memory[addr*2:addr*2+2], 16, 8)
+		if e != nil {
+			log.Error(e)
+			return e
+		}
+		c.memory.MemWrite(uint16(addr), byte(b))
+	}
+	return nil
+}
+
+func (c *ComputerType) AutoSaveFloppy() {
+	for drv := byte(0); drv < fdc.TotalDrives; drv++ {
+		if c.config.FDC[drv].AutoSave {
+			e := c.fdc.SaveFloppy(drv)
+			if e != nil {
+				log.Error(e)
+			}
+		}
+	}
+}
+
+func (c *ComputerType) AutoLoadFloppy() {
+	for drv := byte(0); drv < fdc.TotalDrives; drv++ {
+		if c.config.FDC[drv].AutoLoad {
+			e := c.fdc.LoadFloppy(drv)
+			if e != nil {
+				log.Error(e)
+			}
+		}
+	}
 }

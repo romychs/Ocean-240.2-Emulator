@@ -88,8 +88,8 @@ type FloppyDriveController struct {
 	//curSector   *SectorType
 	bytePtr     uint16
 	trackBuffer []byte
-	floppyFile  []string
-	config      *config.OkEmuConfig
+	//	floppyFile  []string
+	config *config.OkEmuConfig
 }
 
 type FloppyDriveControllerInterface interface {
@@ -332,14 +332,14 @@ func (f *FloppyDriveController) Drq() byte {
 
 func (f *FloppyDriveController) LoadFloppy(drive byte) error {
 	if drive < TotalDrives {
-		return loadFloppy(&f.sectors[drive], f.floppyFile[drive])
+		return loadFloppy(&f.sectors[drive], f.config.FDC[drive].FloppyFile)
 	}
 	return errors.New("DriveNo " + strconv.Itoa(int(drive)) + " out of range")
 }
 
 func (f *FloppyDriveController) SaveFloppy(drive byte) error {
 	if drive < TotalDrives {
-		return saveFloppy(&f.sectors[drive], f.floppyFile[drive])
+		return saveFloppy(&f.sectors[drive], f.config.FDC[drive].FloppyFile)
 	}
 	return errors.New("DriveNo " + strconv.Itoa(int(drive)) + " out of range")
 }
@@ -353,20 +353,22 @@ func NewFDC(conf *config.OkEmuConfig) *FloppyDriveController {
 			sec[d][i] = bytes.Repeat([]byte{0xe5}, SectorSize)
 		}
 	}
+
 	return &FloppyDriveController{
-		sideNo:     0,
-		ddEn:       0,
-		init:       0,
-		drive:      0,
-		mot1:       0,
-		mot0:       0,
-		intRq:      0,
-		motSt:      0,
-		drq:        0,
-		lastCmd:    0xff,
-		sectors:    sec,
-		bytePtr:    0xffff,
-		floppyFile: []string{conf.FDC.FloppyB, conf.FDC.FloppyC},
+		sideNo:  0,
+		ddEn:    0,
+		init:    0,
+		drive:   0,
+		mot1:    0,
+		mot0:    0,
+		intRq:   0,
+		motSt:   0,
+		drq:     0,
+		lastCmd: 0xff,
+		sectors: sec,
+		bytePtr: 0xffff,
+		//floppyConf: conf.FDC,
+		config: conf,
 	}
 }
 

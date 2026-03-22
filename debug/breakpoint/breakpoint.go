@@ -34,7 +34,7 @@ var orMatch = regexp.MustCompile(`\s+OR\s+`)
 
 // var xorMatch = regexp.MustCompile(`\s+XOR\s+`)
 var hexHMatch = regexp.MustCompile(`[[:xdigit:]]+H`)
-var eqMatch = regexp.MustCompile(`[^=><]=[^=]`)
+var eqMatch = regexp.MustCompile(`[^=><!]=[^=]`)
 
 func patchExpression(expr string) string {
 	ex := strings.ToUpper(expr)
@@ -58,6 +58,8 @@ func patchExpression(expr string) string {
 			break
 		}
 	}
+	ex = strings.ReplaceAll(ex, "NOT", "!")
+	ex = strings.ReplaceAll(ex, "<>", "!=")
 	return ex
 }
 
