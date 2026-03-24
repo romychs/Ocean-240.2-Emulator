@@ -20,7 +20,6 @@ import (
 	"okemu/z80/c99"
 	//"okemu/z80/js"
 
-	"fyne.io/fyne/v2"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -50,6 +49,7 @@ type ComputerType struct {
 	//
 	debugger *debug.Debugger
 	config   *config.OkEmuConfig
+	kbAck    bool
 }
 
 type Snapshot struct {
@@ -62,20 +62,20 @@ const VRAMBlock1 = 7
 const VidVsuBit = 0x80
 const VidColorBit = 0x40
 
-type ComputerInterface interface {
-	Run()
-	Reset()
-	GetPixel(x uint16, y uint16) color.RGBA
-	Do() uint64
-	TimerClk()
-	PutKey(key *fyne.KeyEvent)
-	PutRune(key rune)
-	PutCtrlKey(shortcut fyne.Shortcut)
-	SaveFloppy()
-	LoadFloppy()
-	CPUState() *z80.CPU
-	SetCPUState(state *z80.CPU)
-}
+//type ComputerInterface interface {
+//	Run()
+//	Reset()
+//	GetPixel(x uint16, y uint16) color.RGBA
+//	Do() uint64
+//	TimerClk()
+//	PutKey(key *fyne.KeyEvent)
+//	PutRune(key rune)
+//	PutCtrlKey(shortcut fyne.Shortcut)
+//	SaveFloppy()
+//	LoadFloppy()
+//	CPUState() *z80.CPU
+//	SetCPUState(state *z80.CPU)
+//}
 
 func (c *ComputerType) GetCPUState() *z80.CPU {
 	return c.cpu.GetState()
@@ -120,6 +120,7 @@ func NewComputer(cfg *config.OkEmuConfig, deb *debug.Debugger) *ComputerType {
 	//c.aOffset = 0x100
 
 	c.pit = pit.New()
+	c.kbAck = false
 	c.usart = usart.New()
 	c.pic = pic.New()
 	c.fdc = fdc.NewFDC(cfg)
@@ -223,10 +224,14 @@ func (c *ComputerType) GetPixel(x uint16, y uint16) color.RGBA {
 		// Color 256x256 mode
 		addr = ((x & 0xf8) << 6) | y
 
-		cl := (c.vRAM.memory[(addr-offset)&0x3fff] >> (x & 0x07)) & 1
-		cl |= ((c.vRAM.memory[(addr+0x100-offset)&0x3fff] >> (x & 0x07)) & 1) << 1
+		a1 := (addr - offset) & 0x3fff
+		a2 := (a1 + 0x100) & 0x3fff
+
+		cl := (c.vRAM.memory[a1] >> (x & 0x07)) & 1
+		cl |= ((c.vRAM.memory[a2] >> (x & 0x07)) & 1) << 1
 		if cl == 0 {
 			resColor = BgColorPalette[c.bgColor]
+			resColor = ColorPalette[c.palette][cl]
 		} else {
 			resColor = ColorPalette[c.palette][cl]
 		}

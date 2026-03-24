@@ -57,7 +57,7 @@ const KbdDd78pa = 0x40
 const KbdDd78pb = 0x41
 
 // KBD_DD78PC Port C - [PC7:5],[KBD_ACK],[PC3:0]
-//const KBD_DD78PC = 0x42
+const KbdDd78pc = 0x42
 
 // KBD_DD78CTR Control port
 // Configure: [1][ma1,ma0][0-aO|1-aI],[0-chO,1-chI],[mb],[0-bO|1-bI],[0-clO,1-clI]

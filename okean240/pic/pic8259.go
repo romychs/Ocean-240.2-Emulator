@@ -7,8 +7,6 @@ package pic
 	By Romych, 2025.03.05
 */
 
-import log "github.com/sirupsen/logrus"
-
 type I8259 struct {
 	irr byte
 	csw byte
@@ -42,12 +40,11 @@ func (c *I8259) IRR() byte {
 	return irr
 }
 
+func (c *I8259) ResetIRQ(irq byte) {
+	c.irr &= ^(byte(1) << (irq & 0x07))
+}
 func (c *I8259) SetIRQ(irq byte) {
-	if irq < 8 {
-		c.irr |= 1 << irq
-	} else {
-		log.Warnf("SetIRQ out of range [0..7]: %d", irq)
-	}
+	c.irr |= 1 << (irq & 0x07)
 }
 
 func (c *I8259) CSW() byte {

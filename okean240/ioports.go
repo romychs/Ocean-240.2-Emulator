@@ -14,7 +14,12 @@ func (c *ComputerType) IORead(port uint16) byte {
 	switch port & 0x00ff {
 	case PicDd75a:
 		// PIO xx59, get IRR register
-		return c.pic.IRR()
+		irr := c.pic.IRR()
+		// if irq from keyboard and no ACK applied, re-fire
+		if irr&0x10 != 0 && !c.kbAck {
+			c.pic.SetIRQ(RstKbdNo)
+		}
+		return irr
 	case PicDd75b:
 		return c.pic.CSW()
 	case UartDd72rr:
@@ -110,6 +115,14 @@ func (c *ComputerType) IOWrite(port uint16, val byte) {
 		c.fdc.SetSectorNo(val)
 	case Floppy:
 		c.fdc.SetFloppy(val)
+
+	case KbdDd78pc:
+		if val&0x80 != 0 {
+			c.kbAck = true
+		} else {
+			//c.kbAck = false
+		}
+
 	default:
 		//log.Debugf("OUT to Unknown port (%x), %x", bp, val)
 	}

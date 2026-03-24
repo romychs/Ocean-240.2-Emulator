@@ -11,6 +11,7 @@ func (c *ComputerType) PutKey(key *fyne.KeyEvent) {
 		//log.Debugf("PutKey keyName: %s", key.Name)
 		c.ioPorts[KbdDd78pa] = code
 		c.pic.SetIRQ(RstKbdNo)
+		c.kbAck = false
 	}
 
 }
@@ -21,6 +22,7 @@ func (c *ComputerType) PutRune(key rune) {
 
 	c.ioPorts[KbdDd78pa] = byte(key & 0xff)
 	c.pic.SetIRQ(RstKbdNo)
+	c.kbAck = false
 }
 
 /*
@@ -39,6 +41,7 @@ func (c *ComputerType) PutRune(key rune) {
 func (c *ComputerType) PutCtrlKey(key byte) {
 	c.ioPorts[KbdDd78pa] = key
 	c.pic.SetIRQ(RstKbdNo)
+	c.kbAck = false
 	//c.ioPorts[PIC_DD75RS] |= Rst1Mask
 	c.ioPorts[KbdDd78pb] &= 0x1f | 0x20
 }
