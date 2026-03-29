@@ -15,6 +15,7 @@ import (
 	"okemu/z80"
 	"os"
 	"strconv"
+	"sync/atomic"
 
 	//"okemu/z80"
 	"okemu/z80/c99"
@@ -24,6 +25,10 @@ import (
 )
 
 const DefaultCPUFrequency = 2_500_000
+const CPUFrequencyLow float64 = 2.47
+const CPUFrequencyHi float64 = 2.53
+const TimerFrequencyLow float64 = 1.47
+const TimerFrequencyHi float64 = 1.53
 
 type ComputerType struct {
 	cpu            *c99.Z80
@@ -49,7 +54,7 @@ type ComputerType struct {
 	//
 	debugger *debug.Debugger
 	config   *config.OkEmuConfig
-	kbAck    bool
+	kbAck    atomic.Bool
 }
 
 type Snapshot struct {
@@ -77,7 +82,7 @@ const VidColorBit = 0x40
 //	SetCPUState(state *z80.CPU)
 //}
 
-func (c *ComputerType) GetCPUState() *z80.CPU {
+func (c *ComputerType) CPUState() *z80.CPU {
 	return c.cpu.GetState()
 }
 
@@ -120,9 +125,9 @@ func NewComputer(cfg *config.OkEmuConfig, deb *debug.Debugger) *ComputerType {
 	//c.aOffset = 0x100
 
 	c.pit = pit.New()
-	c.kbAck = false
+	c.kbAck.Store(false)
 	c.usart = usart.New()
-	c.pic = pic.New()
+	c.pic = pic.NewI8259()
 	c.fdc = fdc.NewFDC(cfg)
 	c.cpuFrequency = DefaultCPUFrequency
 	c.debugger = deb
@@ -230,7 +235,7 @@ func (c *ComputerType) GetPixel(x uint16, y uint16) color.RGBA {
 		cl := (c.vRAM.memory[a1] >> (x & 0x07)) & 1
 		cl |= ((c.vRAM.memory[a2] >> (x & 0x07)) & 1) << 1
 		if cl == 0 {
-			resColor = BgColorPalette[c.bgColor]
+			//resColor = BgColorPalette[c.bgColor]
 			resColor = ColorPalette[c.palette][cl]
 		} else {
 			resColor = ColorPalette[c.palette][cl]
@@ -299,7 +304,6 @@ func (c *ComputerType) TimerClk() {
 	// IRQ from timer
 	if c.pit.Fired(0) {
 		c.pic.SetIRQ(RstTimerNo)
-		//c.ioPorts[PIC_DD75RS] |= Rst4Mask
 	}
 	// clock for SIO KR580VV51
 	if c.pit.Fired(1) {

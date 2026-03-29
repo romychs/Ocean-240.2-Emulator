@@ -21,6 +21,8 @@ import (
 func mainWindow(computer *okean240.ComputerType, config *config.OkEmuConfig) (*fyne.Window, *canvas.Raster, *widget.Label) {
 	emulatorApp := app.New()
 	w := emulatorApp.NewWindow("Океан 240.2")
+
+	// Handle all keys typed in main window canvas
 	w.Canvas().SetOnTypedKey(
 		func(key *fyne.KeyEvent) {
 			computer.PutKey(key)
@@ -33,6 +35,7 @@ func mainWindow(computer *okean240.ComputerType, config *config.OkEmuConfig) (*f
 
 	addShortcuts(w.Canvas(), computer)
 
+	// ---
 	label := widget.NewLabel(fmt.Sprintf("Screen size: %dx%d", computer.ScreenWidth(), computer.ScreenHeight()))
 
 	raster := canvas.NewRasterWithPixels(
@@ -49,15 +52,20 @@ func mainWindow(computer *okean240.ComputerType, config *config.OkEmuConfig) (*f
 	raster.SetMinSize(fyne.NewSize(512, 512))
 
 	centerRaster := container.NewCenter(raster)
-
 	w.Resize(fyne.NewSize(600, 600))
 
-	vBox := container.NewVBox(
+	//vBox := container.NewVBox(
+	//	newToolbar(computer, w, emulatorApp, config),
+	//	centerRaster,
+	//	label,
+	//)
+	vBox := container.NewBorder(
 		newToolbar(computer, w, emulatorApp, config),
-		centerRaster,
 		label,
+		nil,
+		nil,
+		centerRaster,
 	)
-
 	w.SetContent(vBox)
 
 	return &w, raster, label
@@ -86,40 +94,37 @@ func newToolbar(c *okean240.ComputerType, w fyne.Window, a fyne.App, config *con
 	}
 
 	hBox.Add(widget.NewButtonWithIcon("1", theme.DownloadIcon(), func() {
-		c.SetRamBytes(ramBytes1)
+		c.SetRamBytes(ramBytes)
 	}))
-	hBox.Add(widget.NewSeparator())
-	hBox.Add(widget.NewButtonWithIcon("2", theme.DownloadIcon(), func() {
-		c.SetRamBytes(ramBytes2)
-	}))
+
 	hBox.Add(widget.NewSeparator())
 	hBox.Add(widget.NewButtonWithIcon("^C", theme.MediaStopIcon(), func() {
 		c.PutCtrlKey(0x03)
 	}))
 	hBox.Add(widget.NewSeparator())
-	cbFreq := widget.NewCheck("Fmax", func(checked bool) {
-		fullSpeed.Store(checked)
-		if checked {
-			c.SetCPUFrequency(25_000_000)
-		} else {
-			c.SetCPUFrequency(2_500_000)
-		}
-	})
-	//bNorm := widget.NewButtonWithIcon("", theme.MediaPlayIcon(), func() {
-	//	fullSpeed.Store(false)
-	//	c.SetCPUFrequency(2_500_000)
-	//	//bNorm.Disable()
-	//
-	//})
-	//bFast := widget.NewButtonWithIcon("", theme.MediaFastForwardIcon(), func() {
-	//	fullSpeed.Store(true)
-	//	c.SetCPUFrequency(50_000_000)
-	//	bNorm.Enable()
-	//	//bFast.Disable()
-	//})
+	bNorm := widget.NewButtonWithIcon("", theme.MediaPlayIcon(), nil)
+	bFast := widget.NewButtonWithIcon("", theme.MediaFastForwardIcon(), nil)
 
-	hBox.Add(cbFreq)
-	//hBox.Add(bFast)
+	bFast.OnTapped = func() {
+		fullSpeed.Store(true)
+		c.SetCPUFrequency(50_000_000)
+		bNorm.Enable()
+		bFast.Disable()
+	}
+
+	bNorm.OnTapped = func() {
+		fullSpeed.Store(false)
+		c.SetCPUFrequency(2_500_000)
+		bNorm.Disable()
+		bFast.Enable()
+	}
+
+	bNorm.Disable()
+
+	//hBox.Add(cbFreq)
+	hBox.Add(bNorm)
+	hBox.Add(bFast)
+
 	hBox.Add(widget.NewSeparator())
 	hBox.Add(widget.NewButtonWithIcon("", theme.SettingsIcon(), func() {
 		cfg := config.Clone()

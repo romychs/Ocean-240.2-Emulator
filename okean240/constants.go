@@ -93,12 +93,14 @@ const TmrDd70ctr = 0x63
 
 const RstKbdNo = 1
 const RstTimerNo = 4
+const KbAckBit = 0x80
 
-//const Rst0Mask = 0x01 // System interrupt
-//const Rst1Mask = 0x02 // Keyboard interrupt
-//const Rst2Mask = 0x04 // Serial interface interrupt
-//const Rst3Mask = 0x08 // Printer ready
-//const Rst4Mask = 0x10
+// const Rst0Mask = 0x01 // System interrupt
+const RstKbdMask = 0x02 // Keyboard interrupt
+// const Rst2Mask = 0x04 // Serial interface interrupt
+// const Rst3Mask = 0x08 // Printer ready
+const RstTmrMask = 0x10
+
 //const Rst5Mask = 0x20 // Power intRq
 //const Rst6Mask = 0x40 // User device 1 interrupt
 //const Rst7Mask = 0x80 // User device 1 interrupt

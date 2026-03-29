@@ -154,8 +154,8 @@ func HandleCommand(str string, writer *bufio.Writer) bool {
 	switch cmd {
 	case "cpu-step":
 		debugger.SetDoStep(true) // computer.Do()
-		text := disassembler.Disassm(computer.GetCPUState().PC)
-		writeResponseMessage(writer, registersResponse(computer.GetCPUState())+" TSTATES: "+strconv.Itoa(int(computer.TStatesPartial()))+"\n"+text)
+		text := disassembler.Disassm(computer.CPUState().PC)
+		writeResponseMessage(writer, registersResponse(computer.CPUState())+" TSTATES: "+strconv.Itoa(int(computer.TStatesPartial()))+"\n"+text)
 	case "run":
 		writeMessage(writer, runUntilBPMessage)
 		debugger.SetRunMode(true)
@@ -173,7 +173,7 @@ func HandleCommand(str string, writer *bufio.Writer) bool {
 	case "get-version":
 		writeResponseMessage(writer, getVersionResponse)
 	case "get-registers":
-		writeResponseMessage(writer, registersResponse(computer.GetCPUState()))
+		writeResponseMessage(writer, registersResponse(computer.CPUState()))
 	case "set-register":
 		writeResponseMessage(writer, setRegister(params))
 	case "hard-reset-cpu":
@@ -472,7 +472,7 @@ func stateResponse(state *z80.CPU) string {
 }
 
 func setRegister(param string) string {
-	state := computer.GetCPUState()
+	state := computer.CPUState()
 	params := strings.Split(param, "=")
 	if len(params) != 2 {
 		log.Errorf("Invalid set register parameter: %s", param)
@@ -515,7 +515,7 @@ func setRegister(param string) string {
 		log.Errorf("Unsupported set register parameter: %s", param)
 	}
 	computer.SetCPUState(state)
-	return registersResponse(computer.GetCPUState())
+	return registersResponse(computer.CPUState())
 }
 
 func readMemory(param string) string {
@@ -551,7 +551,7 @@ func getExtendedStack(param string) string {
 		log.Errorf("Invalid size param: %s", param)
 	}
 
-	sp := computer.GetCPUState().SP
+	sp := computer.CPUState().SP
 	if len(params) == 3 {
 		psp, err := strconv.ParseUint(params[2], 10, 16)
 		if err != nil {
@@ -620,7 +620,7 @@ func typToString(typ uint8) string {
 
 func BreakpointHit(number uint16, typ byte) {
 	if activeWriter != nil {
-		pc := computer.GetCPUState().PC
+		pc := computer.CPUState().PC
 		res := disassembler.Disassm(pc)
 		msg := ""
 		if typ == 0 {

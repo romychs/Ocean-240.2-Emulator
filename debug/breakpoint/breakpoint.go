@@ -11,7 +11,9 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const MaxBreakpoints = 256
+const MaxBreakpoints = 16383
+const BpTmp1 = MaxBreakpoints + 1
+const BpTmp2 = MaxBreakpoints + 2
 
 const (
 	BPTypeSimplePC   = iota // Simple PC=nn breakpoint
@@ -27,6 +29,7 @@ type Breakpoint struct {
 	pass      uint16
 	passCount uint16
 	enabled   bool
+	mBank     uint8
 }
 
 var andMatch = regexp.MustCompile(`\s+AND\s+`)
@@ -82,13 +85,14 @@ func getSecondUint16(param string, sep string) (uint16, error) {
 	return uint16(a), nil
 }
 
-func NewBreakpoint(expr string) (*Breakpoint, error) {
+func NewBreakpoint(expr string, mBank uint8) (*Breakpoint, error) {
 	bp := Breakpoint{
 		addr:      0,
 		enabled:   false,
 		passCount: 0,
 		pass:      0,
 		bpType:    BPTypeSimplePC,
+		mBank:     mBank,
 	}
 
 	// Check if BP is simple PC=addr
@@ -209,13 +213,13 @@ func (b *Breakpoint) Hit(ctx map[string]interface{}) bool {
 	if b.bpType == BPTypeSimplePC {
 		pc := getUint16("PC", ctx)
 		if pc == b.addr {
-			log.Debugf("Breakpoint Hit PC=%04X", b.addr)
+			log.Debugf("Breakpoint Hit PC=0x%04X", b.addr)
 		}
 		return pc == b.addr
 	} else if b.bpType == BPTypeSimpleSP {
 		sp := getUint16("SP", ctx)
 		if sp >= b.addr {
-			log.Debugf("Breakpoint Hit SP>=%04X", b.addr)
+			log.Debugf("Breakpoint Hit SP>=0x%04X", b.addr)
 		}
 		return sp >= b.addr
 	}
@@ -245,4 +249,8 @@ func (b *Breakpoint) SetExpression(expression string) error {
 
 func (b *Breakpoint) Expression() string {
 	return b.cond
+}
+
+func (b *Breakpoint) MBank() uint8 {
+	return b.mBank
 }

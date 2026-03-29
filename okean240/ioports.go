@@ -16,7 +16,8 @@ func (c *ComputerType) IORead(port uint16) byte {
 		// PIO xx59, get IRR register
 		irr := c.pic.IRR()
 		// if irq from keyboard and no ACK applied, re-fire
-		if irr&0x10 != 0 && !c.kbAck {
+		if irr&RstKbdMask != 0 && !c.kbAck.Load() {
+			log.Tracef("KBD IRQ REFIRE PC=%04X", c.cpu.PC())
 			c.pic.SetIRQ(RstKbdNo)
 		}
 		return irr
@@ -30,6 +31,7 @@ func (c *ComputerType) IORead(port uint16) byte {
 		return c.usart.Receive()
 	case KbdDd78pa:
 		// Keyboard data
+		log.Tracef("KBD RD: %d, PC=%04X", c.ioPorts[KbdDd78pa], c.cpu.PC())
 		return c.ioPorts[KbdDd78pa]
 	case KbdDd78pb:
 		return c.ioPorts[KbdDd78pb]
@@ -117,12 +119,14 @@ func (c *ComputerType) IOWrite(port uint16, val byte) {
 		c.fdc.SetFloppy(val)
 
 	case KbdDd78pc:
-		if val&0x80 != 0 {
-			c.kbAck = true
+		if val&KbAckBit != 0 {
+			c.kbAck.Store(true)
+			log.Trace("KBD ACK")
 		} else {
-			//c.kbAck = false
+			if c.kbAck.Load() {
+				c.pic.ResetIRQ(RstKbdNo)
+			}
 		}
-
 	default:
 		//log.Debugf("OUT to Unknown port (%x), %x", bp, val)
 	}

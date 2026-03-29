@@ -7,7 +7,8 @@ import (
 	"math"
 	"okemu/config"
 	"okemu/debug"
-	"okemu/debug/listener"
+	"okemu/debug/dzrp"
+	//"okemu/debug/listener"
 	"okemu/logger"
 	"okemu/okean240"
 	"okemu/z80/dis"
@@ -30,11 +31,11 @@ var BuildTime = "2026-03-01"
 ////go:embed hex/m80.hex
 //var serialBytes []byte
 
-//go:embed bin/2048.com
-var ramBytes1 []byte
+//go:embed bin/PIP.COM
+var ramBytes []byte
 
-//go:embed bin/JACK.COM
-var ramBytes2 []byte
+////go:embed bin/LINK.COM
+//var ramBytes2 []byte
 
 var needReset = false
 
@@ -81,16 +82,19 @@ func main() {
 
 	computer.AutoLoadFloppy()
 
-	disasm := dis.NewDisassembler(computer)
+	disassm := dis.NewDisassembler(computer)
 
 	w, raster, label := mainWindow(computer, conf)
 
-	go emulator(ctx, computer)
+	dezog := dzrp.NewDZRP(conf, debugger, disassm, computer)
+
+	go emulator(ctx, computer, dezog)
 	go timerClock(ctx, computer)
 	go screen(ctx, computer, raster, label)
 
 	if conf.Debugger.Enabled {
-		go listener.SetupTcpHandler(conf, debugger, disasm, computer)
+		//go listener.SetupTcpHandler(conf, debugger, disassm, computer)
+		go dezog.SetupTcpHandler()
 	}
 
 	(*w).ShowAndRun()
@@ -124,7 +128,7 @@ func screen(ctx context.Context, computer *okean240.ComputerType, raster *canvas
 					timerFreq = math.Round(float64(timerTicks.Load()-preTim)/period) / 1000.0
 					label.SetText(formatLabel(computer, cpuFreq, timerFreq))
 
-					adjustTimers(cpuFreq, timerFreq)
+					adjustPeriods(cpuFreq, timerFreq)
 
 					//log.Debugf("Cpu clk period: %d, Timer clock period: %d, period: %1.3f", cpuClkPeriod.Load(), timerClkPeriod.Load(), period)
 					//pre = computer.Cycles()
@@ -140,22 +144,21 @@ func screen(ctx context.Context, computer *okean240.ComputerType, raster *canvas
 	}
 }
 
-func adjustTimers(cpuFreq float64, timerFreq float64) {
-	// adjust cpu clock
-	if cpuFreq > 2.55 && cpuClkPeriod.Load() < defaultCpuClkPeriod+defaultCpuClkPeriod/2 {
-		cpuClkPeriod.Add(1)
-		//						cpuTicker.Reset(time.Duration(cpuClkPeriod.Load()))
-	} else if cpuFreq < 2.45 && cpuClkPeriod.Load() > 3 {
-		cpuClkPeriod.Add(-2)
-		//						cpuTicker.Reset(time.Duration(cpuClkPeriod.Load()))
+// adjustPeriods Adjust periods for CPU and Timer clock frequencies
+func adjustPeriods(cpuFreq float64, timerFreq float64) {
+	// adjust cpu clock if not full speed
+	if !fullSpeed.Load() {
+		if cpuFreq > okean240.CPUFrequencyHi && cpuClkPeriod.Load() < defaultCpuClkPeriod+defaultCpuClkPeriod/2 {
+			cpuClkPeriod.Add(1)
+		} else if cpuFreq < okean240.CPUFrequencyLow && cpuClkPeriod.Load() > 3 {
+			cpuClkPeriod.Add(-1)
+		}
 	}
 	// adjust timerClock clock
-	if timerFreq > 1.53 && timerClkPeriod.Load() < defaultTimerClkPeriod+defaultTimerClkPeriod/2 {
+	if timerFreq > okean240.TimerFrequencyHi && timerClkPeriod.Load() < defaultTimerClkPeriod+defaultTimerClkPeriod/2 {
 		timerClkPeriod.Add(1)
-		//timerTicker.Reset(time.Duration(timerClkPeriod.Load()))
-	} else if timerFreq < 1.47 && timerClkPeriod.Load() > 3 {
-		timerClkPeriod.Add(-2)
-		//timerTicker.Reset(time.Duration(timerClkPeriod.Load()))
+	} else if timerFreq < okean240.TimerFrequencyLow && timerClkPeriod.Load() > 3 {
+		timerClkPeriod.Add(-1)
 	}
 }
 
@@ -192,7 +195,7 @@ func timerClock(ctx context.Context, computer *okean240.ComputerType) {
 
 var cpuTicks atomic.Uint64
 
-func emulator(ctx context.Context, computer *okean240.ComputerType) {
+func emulator(ctx context.Context, computer *okean240.ComputerType, dezog *dzrp.DZRP) {
 	cpuClkPeriod.Store(defaultCpuClkPeriod)
 	//cpuTicker = time.NewTicker(time.Duration(cpuClkPeriod.Load()) * time.Nanosecond)
 	//defer cpuTicker.Stop()
@@ -228,7 +231,7 @@ func emulator(ctx context.Context, computer *okean240.ComputerType) {
 
 			// Breakpoint hit
 			if bp > 0 || bpType != 0 {
-				listener.BreakpointHit(bp, bpType)
+				dezog.BreakpointHit(bp, bpType)
 			}
 			if needReset {
 				computer.Reset()

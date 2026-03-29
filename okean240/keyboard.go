@@ -2,27 +2,27 @@ package okean240
 
 import (
 	"fyne.io/fyne/v2"
+	log "github.com/sirupsen/logrus"
 )
 
 func (c *ComputerType) PutKey(key *fyne.KeyEvent) {
 
 	code := RemapCmdKey[key.Name]
 	if code > 0 {
-		//log.Debugf("PutKey keyName: %s", key.Name)
+		log.Tracef("PutKey keyName: %s", key.Name)
 		c.ioPorts[KbdDd78pa] = code
+		c.kbAck.Store(false)
 		c.pic.SetIRQ(RstKbdNo)
-		c.kbAck = false
 	}
 
 }
 
 func (c *ComputerType) PutRune(key rune) {
-
-	//log.Debugf("Put Rune: %c  Lo: %x, Hi: %x", key, key&0xff, key>>8)
-
+	log.Tracef("Put Rune: %c  Lo: %x, Hi: %x", key, key&0xff, key>>8)
 	c.ioPorts[KbdDd78pa] = byte(key & 0xff)
+	c.kbAck.Store(false)
 	c.pic.SetIRQ(RstKbdNo)
-	c.kbAck = false
+
 }
 
 /*
@@ -41,7 +41,6 @@ func (c *ComputerType) PutRune(key rune) {
 func (c *ComputerType) PutCtrlKey(key byte) {
 	c.ioPorts[KbdDd78pa] = key
 	c.pic.SetIRQ(RstKbdNo)
-	c.kbAck = false
-	//c.ioPorts[PIC_DD75RS] |= Rst1Mask
+	c.kbAck.Store(false)
 	c.ioPorts[KbdDd78pb] &= 0x1f | 0x20
 }

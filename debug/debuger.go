@@ -138,13 +138,36 @@ func (d *Debugger) BreakpointsEnabled() bool {
 }
 
 // SetBreakpoint  Create new breakpoint with specified number
-func (d *Debugger) SetBreakpoint(number uint16, exp string) error {
+func (d *Debugger) SetBreakpoint(number uint16, exp string, mBank uint8) error {
 	var err error
-	bp, err := breakpoint.NewBreakpoint(exp)
+	bp, err := breakpoint.NewBreakpoint(exp, mBank)
 	if err == nil && bp != nil {
 		d.breakpoints[number] = bp
 	}
 	return err
+}
+
+func (d *Debugger) AddBreakpoint(exp string, mBank uint8) (uint16, error) {
+	var err error
+	bpNo := d.GetBreakpointNum()
+	if bpNo < breakpoint.MaxBreakpoints {
+		bp, err := breakpoint.NewBreakpoint(exp, mBank)
+		if err == nil && bp != nil {
+			bp.SetEnabled(true)
+			d.breakpoints[bpNo] = bp
+		}
+	}
+	return bpNo, err
+}
+
+func (d *Debugger) GetBreakpointNum() uint16 {
+	num := uint16(1)
+	for no, bp := range d.breakpoints {
+		if bp != nil && no < breakpoint.MaxBreakpoints && num <= no {
+			num = no + 1
+		}
+	}
+	return num
 }
 
 func (d *Debugger) SetBreakpointPassCount(number uint16, count uint16) {
@@ -168,6 +191,14 @@ func (d *Debugger) BreakpointEnabled(number uint16) bool {
 		return bp.Enabled()
 	}
 	return false
+}
+
+func (d *Debugger) BreakpointMBank(number uint16) uint8 {
+	bp, ok := d.breakpoints[number]
+	if ok && bp != nil {
+		return bp.MBank()
+	}
+	return 1
 }
 
 func (d *Debugger) ClearMemBreakpoints() {
@@ -207,6 +238,10 @@ func (d *Debugger) SetMemBreakpoint(address uint16, typ byte, size uint16) {
 	}
 }
 
+func (d *Debugger) RemoveBreakpoint(number uint16) {
+	delete(d.breakpoints, number)
+}
+
 func (d *Debugger) CheckMemBreakpoints(accessMap *map[uint16]byte) (bool, uint16, byte) {
 	if !d.breakpointsEnabled {
 		return false, 0, 0
@@ -222,4 +257,8 @@ func (d *Debugger) CheckMemBreakpoints(accessMap *map[uint16]byte) (bool, uint16
 		}
 	}
 	return false, 0, 0
+}
+
+func (d *Debugger) ClearBreakpoints() {
+	clear(d.breakpoints)
 }
