@@ -7,14 +7,11 @@ import (
 	"math"
 	"okemu/config"
 	"okemu/debug"
-	"okemu/debug/dzrp"
-	//"okemu/debug/listener"
+	"okemu/debug/zrcp"
 	"okemu/logger"
 	"okemu/okean240"
 	"okemu/z80/dis"
-	"os"
 	"runtime"
-	"runtime/pprof"
 	"sync/atomic"
 	"time"
 
@@ -22,7 +19,6 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/widget"
 	"github.com/loov/hrtime"
-	log "github.com/sirupsen/logrus"
 )
 
 var Version = "v1.0.0"
@@ -45,22 +41,21 @@ func main() {
 
 	fmt.Printf("Starting Ocean-240.2 emulator %s build at %s\n", Version, BuildTime)
 
-	f, err := os.Create("okemu.prof")
-	if err != nil {
-		log.Warn("Can not create prof file", err)
-	}
-	defer func(f *os.File) {
-		err := f.Close()
-		if err != nil {
-			log.Warn("Can not close prof file", err)
-		}
-	}(f)
-	if err := pprof.StartCPUProfile(f); err != nil {
-		log.Warn("Can not start CPU profiling", err)
-	}
-	defer pprof.StopCPUProfile()
+	//f, err := os.Create("okemu.prof")
+	//if err != nil {
+	//	log.Warn("Can not create prof file", err)
+	//}
+	//defer func(f *os.File) {
+	//	err := f.Close()
+	//	if err != nil {
+	//		log.Warn("Can not close prof file", err)
+	//	}
+	//}(f)
+	//if err := pprof.StartCPUProfile(f); err != nil {
+	//	log.Warn("Can not start CPU profiling", err)
+	//}
+	//defer pprof.StopCPUProfile()
 
-	// Create a context that can be cancelled
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -86,14 +81,14 @@ func main() {
 
 	w, raster, label := mainWindow(computer, conf)
 
-	dezog := dzrp.NewDZRP(conf, debugger, disassm, computer)
+	//dezog := dzrp.NewDZRP(conf, debugger, disassm, computer)
+	dezog := zrcp.NewZRCP(conf, debugger, disassm, computer)
 
-	go emulator(ctx, computer, dezog)
+	go cpuClock(ctx, computer, dezog)
 	go timerClock(ctx, computer)
 	go screen(ctx, computer, raster, label)
 
 	if conf.Debugger.Enabled {
-		//go listener.SetupTcpHandler(conf, debugger, disassm, computer)
 		go dezog.SetupTcpHandler()
 	}
 
@@ -195,12 +190,10 @@ func timerClock(ctx context.Context, computer *okean240.ComputerType) {
 
 var cpuTicks atomic.Uint64
 
-func emulator(ctx context.Context, computer *okean240.ComputerType, dezog *dzrp.DZRP) {
+func cpuClock(ctx context.Context, computer *okean240.ComputerType, dezog debug.DEZOG) {
 	cpuClkPeriod.Store(defaultCpuClkPeriod)
-	//cpuTicker = time.NewTicker(time.Duration(cpuClkPeriod.Load()) * time.Nanosecond)
-	//defer cpuTicker.Stop()
 
-	cpuTicks.Store(0) // := uint64(0)
+	cpuTicks.Store(0)
 	nextTick := uint64(0)
 
 	var bp uint16
@@ -208,9 +201,6 @@ func emulator(ctx context.Context, computer *okean240.ComputerType, dezog *dzrp.
 	timeStart := hrtime.Now()
 
 	for {
-		//select {
-		//case <-cpuTicker.C:
-		// CPU
 		elapsed := hrtime.Since(timeStart)
 		if int64(elapsed) >= cpuClkPeriod.Load() {
 			timeStart = hrtime.Now()
@@ -238,9 +228,6 @@ func emulator(ctx context.Context, computer *okean240.ComputerType, dezog *dzrp.
 				needReset = false
 			}
 		}
-		//case <-ctx.Done():
-		//	return
-		//}
 	}
 
 }

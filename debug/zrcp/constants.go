@@ -1,4 +1,4 @@
-package listener
+package zrcp
 
 const welcomeMessage = "Welcome to Ocean-240.2 remote command protocol (ZRCP partial implementation)\nWrite help for available commands\n\ncommand> "
 const emptyResponse = "\ncommand> "

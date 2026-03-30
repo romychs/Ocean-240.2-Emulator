@@ -42,6 +42,11 @@ func NewDebugger() *Debugger {
 	return &d
 }
 
+type DEZOG interface {
+	SetupTcpHandler()
+	BreakpointHit(number uint16, typ byte)
+}
+
 func (d *Debugger) SetStepMode(step bool) {
 	d.SetRunMode(false)
 	d.stepMode = step
