@@ -1,6 +1,18 @@
 package c99
 
-import "okemu/z80"
+import (
+	"errors"
+	"okemu/z80"
+)
+
+const (
+	PushValueTypeDefault = iota
+	PushValueTypeCall
+	PushValueTypeRst
+	PushValueTypePush
+	PushValueTypeMaskableInt
+	PushValueTypeNonMaskableInt
+)
 
 type Z80 struct {
 
@@ -33,8 +45,12 @@ type Z80 struct {
 	intPending                     bool
 	nmiPending                     bool
 
-	core      z80.MemIoRW
-	memAccess map[uint16]byte
+	core                 z80.MemIoRW
+	memAccess            map[uint16]byte
+	codeCoverageEnabled  bool
+	codeCoverage         map[uint16]bool
+	extendedStackEnabled bool
+	extendedStack        [65536]uint8
 }
 
 const (
@@ -92,13 +108,17 @@ func New(core z80.MemIoRW) *Z80 {
 	z.intPending = false
 	z.nmiPending = false
 	z.intData = 0
+	z.codeCoverageEnabled = false
+	z.codeCoverage = make(map[uint16]bool)
 	return &z
 }
 
 // RunInstruction executes the next instruction in memory + handles interrupts
 func (z *Z80) RunInstruction() (uint32, *map[uint16]byte) {
 	z.memAccess = map[uint16]byte{}
-
+	if z.codeCoverageEnabled {
+		z.codeCoverage[z.pc] = true
+	}
 	pre := z.cycleCount
 	if z.isHalted {
 		z.execOpcode(0x00)
@@ -222,4 +242,36 @@ func (z *Z80) getAltFlags() z80.FlagsType {
 
 func (z *Z80) PC() uint16 {
 	return z.pc
+}
+
+func (z *Z80) ClearCodeCoverage() {
+	clear(z.codeCoverage)
+}
+
+func (z *Z80) SetCodeCoverage(enabled bool) {
+	z.codeCoverageEnabled = enabled
+	if !enabled {
+		clear(z.codeCoverage)
+	}
+}
+
+func (z *Z80) CodeCoverage() map[uint16]bool {
+	return z.codeCoverage
+}
+
+func (z *Z80) SetExtendedStack(enabled bool) {
+	z.extendedStackEnabled = enabled
+	if enabled {
+		for addr := 0; addr < 65536; addr++ {
+			z.extendedStack[addr] = PushValueTypeDefault
+		}
+	}
+}
+
+func (z *Z80) ExtendedStack() ([]byte, error) {
+	var err error
+	if !z.extendedStackEnabled {
+		err = errors.New("error, z80: ExtendedStack disabled")
+	}
+	return z.extendedStack[:], err
 }

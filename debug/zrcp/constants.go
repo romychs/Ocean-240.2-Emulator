@@ -12,3 +12,12 @@ const getMachineResponse = "64K RAM, no ZX\n"
 const respErrorLoading = "ERROR loading file"
 const quitResponse = "Sayonara baby\n"
 const runUntilBPMessage = "Running until a breakpoint, key press or data sent, menu opening or other event\n"
+
+var PushValueTypeName = []string{
+	"default",
+	"call",
+	"rst",
+	"push",
+	"maskable_interrupt",
+	"non_maskable_interrupt",
+}

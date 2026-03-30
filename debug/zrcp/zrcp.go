@@ -189,7 +189,7 @@ var commandHandlers = map[string]CommandHandler{
 	"about":                   (*ZRCP).handleAbout,
 	"clear-membreakpoints":    (*ZRCP).handleClearMemBreakpoints,
 	"close-all-menus":         (*ZRCP).handleEmptyHandler,
-	"cpu-code-coverage":       (*ZRCP).handleEmptyHandler,
+	"cpu-code-coverage":       (*ZRCP).handleCPUCodeCoverage,
 	"cpu-history":             (*ZRCP).handleCPUHistory,
 	"cpu-step":                (*ZRCP).handleCpuStep,
 	"disable-breakpoint":      (*ZRCP).handleDisableBreakpoint,
@@ -239,9 +239,8 @@ func (p *ZRCP) handleDisassemble() (string, error) {
 func convertToUint16(s string) (uint16, error) {
 	v := strings.TrimSpace(strings.ToUpper(s))
 	base := 0
-	if strings.HasSuffix(v, "h") || strings.HasSuffix(v, "H") {
+	if strings.HasSuffix(v, "H") {
 		v = strings.TrimSuffix(v, "H")
-		v = strings.TrimSuffix(v, "h")
 		base = 16
 	}
 	a, e := strconv.ParseUint(v, base, 16)
@@ -282,21 +281,26 @@ func (p *ZRCP) SetMemBreakpoint(param string) string {
 
 func (p *ZRCP) handleCPUHistory() (string, error) {
 	params := strings.Split(p.params, " ")
-	if len(params) == 0 {
-		return "", errors.New("error, no parameter")
+	if len(params) < 1 {
+		return "", errors.New("error, no parameters")
 	}
+
 	cmd := params[0]
 	nspe := errors.New("error, no second parameter")
+
 	switch cmd {
+
 	case "enabled":
-		if len(params) != 2 {
+		if len(params) < 2 {
 			return "", nspe
 		}
 		p.debugger.SetCpuHistoryEnabled(params[1] == "yes")
+
 	case "clear":
 		p.debugger.CpuHistoryClear()
+
 	case "started":
-		if len(params) != 2 {
+		if len(params) < 2 {
 			return "", nspe
 		}
 		p.debugger.SetCpuHistoryStarted(params[1] == "yes")
@@ -322,8 +326,13 @@ func (p *ZRCP) handleCPUHistory() (string, error) {
 			return p.stateResponse(history), nil
 		}
 		return "", errors.New("ERROR: index out of range")
+	case "ignrephalt":
+		// ignore
+	default:
+		return "", errors.New("error: unknown history command: " + cmd)
 	}
-	return "", errors.New("error: unknown history command: " + cmd)
+
+	return "", nil
 }
 
 func (p *ZRCP) handleLoadBinary() (string, error) {
@@ -461,6 +470,19 @@ func (p *ZRCP) handleSetRegister() (string, error) {
 		return "error", errors.New("invalid set register value")
 	}
 	switch params[0] {
+	case "AF":
+		state.A = uint8(val >> 8)
+		state.Flags.SetFlags(uint8(val))
+	case "BC":
+		state.B = uint8(val >> 8)
+		state.C = uint8(val)
+	case "DE":
+		state.D = uint8(val >> 8)
+		state.E = uint8(val)
+	case "HL":
+		state.H = uint8(val >> 8)
+		state.L = uint8(val)
+	// ------------------------------
 	case "SP":
 		state.SP = uint16(val)
 	case "PC":
@@ -469,8 +491,25 @@ func (p *ZRCP) handleSetRegister() (string, error) {
 		state.IX = uint16(val)
 	case "IY":
 		state.IY = uint16(val)
+	// ------------------------------
+	case "AF'":
+		state.AAlt = uint8(val >> 8)
+		state.FlagsAlt.SetFlags(uint8(val))
+	case "BC'":
+		state.BAlt = uint8(val >> 8)
+		state.CAlt = uint8(val)
+	case "DE'":
+		state.DAlt = uint8(val >> 8)
+		state.EAlt = uint8(val)
+	case "HL'":
+		state.HAlt = uint8(val >> 8)
+		state.LAlt = uint8(val)
+
+	// ------------------------------
 	case "A":
 		state.A = uint8(val)
+	case "F":
+		state.Flags.SetFlags(uint8(val))
 	case "B":
 		state.B = uint8(val)
 	case "C":
@@ -483,6 +522,24 @@ func (p *ZRCP) handleSetRegister() (string, error) {
 		state.H = uint8(val)
 	case "L":
 		state.L = uint8(val)
+	// ------------------------------
+	case "A'":
+		state.AAlt = uint8(val)
+	case "F'":
+		state.FlagsAlt.SetFlags(uint8(val))
+	case "B'":
+		state.BAlt = uint8(val)
+	case "C'":
+		state.CAlt = uint8(val)
+	case "D'":
+		state.DAlt = uint8(val)
+	case "E'":
+		state.EAlt = uint8(val)
+	case "H'":
+		state.HAlt = uint8(val)
+	case "L'":
+		state.LAlt = uint8(val)
+	// ------------------------------
 	case "I":
 		state.I = uint8(val)
 	case "R":
@@ -537,10 +594,14 @@ func (p *ZRCP) getExtendedStack() (string, error) {
 
 	resp := ""
 	spEnd := sp - uint16(size*2)
-	for i := sp; i > spEnd; i -= 2 {
-		resp += fmt.Sprintf("%04XH default\n", p.computer.MemRead(i))
+	es, err := p.computer.ExtendedStack()
+	if err == nil {
+		for i := sp; i > spEnd; i -= 2 {
+			resp += fmt.Sprintf("%04XH %s\n", p.computer.MemRead(i), PushValueTypeName[es[i]])
+		}
 	}
-	return resp, nil
+	log.Tracef("extended-stack get: %s", resp)
+	return resp, err
 }
 
 func (p *ZRCP) handleSetBreakpoint() (string, error) {
@@ -742,8 +803,47 @@ func (p *ZRCP) handleSetBreakpointPassCount() (string, error) {
 }
 
 func (p *ZRCP) handleExtendedStack() (string, error) {
-	if strings.HasPrefix(p.params, "get") {
+	params := strings.Split(p.params, " ")
+	if len(params) < 1 {
+		return "", errors.New("error, not enough params")
+	}
+	cmd := params[0]
+	if cmd == "get" {
 		return p.getExtendedStack()
+	} else if cmd == "enabled" {
+		if len(params) < 2 {
+			return "", errors.New("error, expected yes|no")
+		}
+		p.computer.SetExtendedStack(params[1] == "yes")
+	} else {
+		return "", errors.New("error, unknown sub-command: " + cmd)
 	}
 	return "", nil
+}
+
+// handleCPUCodeCoverage Handle commands:
+// cpu-code-coverage enabled yes
+// cpu-code-coverage enabled no
+// cpu-code-coverage clear
+func (p *ZRCP) handleCPUCodeCoverage() (string, error) {
+	command := strings.Split(p.params, " ")
+	if len(command) < 1 {
+		return "", errors.New("error, not enough arguments")
+	}
+	cmd := command[0]
+	resp := ""
+	switch cmd {
+	case "enabled":
+		if len(command) < 2 {
+			return "", errors.New("error, not arguments for enabled [yas|no]")
+		}
+		p.computer.SetCodeCoverage(command[1] == "yes")
+	case "clear":
+		p.computer.ClearCodeCoverage()
+	case "get":
+		for addr, _ := range p.computer.CodeCoverage() {
+			resp += fmt.Sprintf("%04X ", addr)
+		}
+	}
+	return resp, nil
 }

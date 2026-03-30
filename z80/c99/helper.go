@@ -28,6 +28,7 @@ func (z *Z80) ww(addr uint16, val uint16) {
 func (z *Z80) pushW(val uint16) {
 	z.sp -= 2
 	z.ww(z.sp, val)
+	z.extendedStack[z.sp] = PushValueTypePush
 }
 
 func (z *Z80) popW() uint16 {

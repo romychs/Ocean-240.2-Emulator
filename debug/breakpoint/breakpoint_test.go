@@ -18,6 +18,7 @@ var ctx = map[string]interface{}{
 
 const exprRep = "PC=00115h and (B=5 or  BC = 5)"
 const exprDst = "PC==0x00115 && (B==5 || BC == 5)"
+const exprFn = "PC=PEEKW(SP-2) AND SP>=100"
 
 func Test_PatchExpression(t *testing.T) {
 	ex := patchExpression(exprRep)
@@ -29,7 +30,7 @@ func Test_PatchExpression(t *testing.T) {
 
 func Test_ComplexExpr(t *testing.T) {
 
-	b, e := NewBreakpoint(expr1)
+	b, e := NewBreakpoint(expr1, 1)
 	//e := b.SetExpression(exp1)
 	if e != nil {
 		t.Error(e)
@@ -45,7 +46,7 @@ func Test_ComplexExpr(t *testing.T) {
 const expSimplePC = "PC=00119h"
 
 func Test_BPSetPC(t *testing.T) {
-	b, e := NewBreakpoint(expSimplePC)
+	b, e := NewBreakpoint(expSimplePC, 1)
 	if e != nil {
 		t.Error(e)
 	} else if b != nil {
@@ -74,4 +75,13 @@ func Test_GetCtx(t *testing.T) {
 	if pc != 0x100 {
 		t.Errorf("PC value not found in context")
 	}
+}
+
+func Test_PeekWFn(t *testing.T) {
+	b, e := NewBreakpoint(exprFn, 1)
+	if e != nil {
+		t.Error(e)
+	}
+	b.enabled = true
+	b.Hit(ctx)
 }

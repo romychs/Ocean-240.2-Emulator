@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"okemu/gval"
+	//"okemu/okean240"
 	"regexp"
 	"strconv"
 	"strings"
@@ -206,24 +207,25 @@ func getUint16(name string, ctx map[string]interface{}) uint16 {
 	return 0
 }
 
-func (b *Breakpoint) Hit(ctx map[string]interface{}) bool {
+func (b *Breakpoint) Hit(parameters map[string]interface{}) bool {
 	if !b.enabled {
 		return false
 	}
 	if b.bpType == BPTypeSimplePC {
-		pc := getUint16("PC", ctx)
+		pc := getUint16("PC", parameters)
 		if pc == b.addr {
 			log.Debugf("Breakpoint Hit PC=0x%04X", b.addr)
 		}
 		return pc == b.addr
 	} else if b.bpType == BPTypeSimpleSP {
-		sp := getUint16("SP", ctx)
+		sp := getUint16("SP", parameters)
 		if sp >= b.addr {
 			log.Debugf("Breakpoint Hit SP>=0x%04X", b.addr)
 		}
 		return sp >= b.addr
 	}
-	value, err := b.eval.EvalBool(context.Background(), ctx)
+	bc := context.WithValue(context.Background(), "MEM", parameters["MEM"])
+	value, err := b.eval.EvalBool(bc, parameters)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -233,7 +235,9 @@ func (b *Breakpoint) Hit(ctx map[string]interface{}) bool {
 var language gval.Language
 
 func init() {
-	language = gval.NewLanguage(gval.Base(), gval.Arithmetic(), gval.Bitmask(), gval.PropositionalLogic())
+	language = gval.NewLanguage(gval.Base(), gval.Arithmetic(), gval.Bitmask(), gval.PropositionalLogic(),
+		gval.Function("PEEKW", cfPeekW),
+	)
 }
 
 func (b *Breakpoint) SetExpression(expression string) error {
@@ -253,4 +257,22 @@ func (b *Breakpoint) Expression() string {
 
 func (b *Breakpoint) MBank() uint8 {
 	return b.mBank
+}
+
+func cfPeekW(ctx context.Context, arguments ...interface{}) (interface{}, error) {
+	if len(arguments) != 1 {
+		return nil, fmt.Errorf("expected 1 argument")
+	}
+	addr, ok := arguments[0].(uint)
+	if !ok {
+		return nil, fmt.Errorf("argument must be a uint")
+	}
+	memInt := ctx.Value("MEM")
+	memRead, ok := memInt.(func(uint16) uint8)
+	if !ok {
+		return nil, fmt.Errorf("MEM must be func(uint16) uint8")
+	}
+	lo := memRead(uint16(addr))
+	hi := memRead(uint16(addr + 1))
+	return (uint16(hi) << 8) | uint16(lo), nil
 }

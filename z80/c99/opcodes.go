@@ -20,6 +20,7 @@ func (z *Z80) condJump(condition bool) {
 // calls to next word in memory
 func (z *Z80) call(addr uint16) {
 	z.pushW(z.pc)
+	z.extendedStack[z.sp] = PushValueTypeCall
 	z.pc = addr
 	z.memPtr = addr
 }
@@ -1155,21 +1156,28 @@ func (z *Z80) execOpcode(opcode byte) {
 
 	case 0xC7:
 		z.call(0x00) // rst 0
+		z.extendedStack[z.sp] = PushValueTypeRst
 	case 0xCF:
 		z.call(0x08) // rst 1
+		z.extendedStack[z.sp] = PushValueTypeRst
 	case 0xD7:
 		z.call(0x10) // rst 2
+		z.extendedStack[z.sp] = PushValueTypeRst
 	case 0xDF:
 		z.call(0x18) // rst 3
+		z.extendedStack[z.sp] = PushValueTypeRst
 	case 0xE7:
 		z.call(0x20) // rst 4
+		z.extendedStack[z.sp] = PushValueTypeRst
 	case 0xEF:
 		z.call(0x28) // rst 5
+		z.extendedStack[z.sp] = PushValueTypeRst
 	case 0xF7:
 		z.call(0x30) // rst 6
+		z.extendedStack[z.sp] = PushValueTypeRst
 	case 0xFF:
 		z.call(0x38) // rst 7
-
+		z.extendedStack[z.sp] = PushValueTypeRst
 	case 0xC5:
 		z.pushW(z.bc()) // push bc
 	case 0xD5:

@@ -173,6 +173,7 @@ func (c *ComputerType) getContext() map[string]interface{} {
 	context["DE"] = uint16(s.D)<<8 | uint16(s.E)
 	context["HL"] = uint16(s.H)<<8 | uint16(s.L)
 	context["AF"] = uint16(s.A)<<8 | uint16(s.Flags.GetFlags())
+	context["MEM"] = c.memory.MemRead
 	return context
 }
 
@@ -457,4 +458,24 @@ func (c *ComputerType) AutoLoadFloppy() {
 			}
 		}
 	}
+}
+
+func (c *ComputerType) ClearCodeCoverage() {
+	c.cpu.ClearCodeCoverage()
+}
+
+func (c *ComputerType) SetCodeCoverage(enabled bool) {
+	c.cpu.SetCodeCoverage(enabled)
+}
+
+func (c *ComputerType) CodeCoverage() map[uint16]bool {
+	return c.cpu.CodeCoverage()
+}
+
+func (c *ComputerType) SetExtendedStack(enabled bool) {
+	c.cpu.SetExtendedStack(enabled)
+}
+
+func (c *ComputerType) ExtendedStack() ([]byte, error) {
+	return c.cpu.ExtendedStack()
 }
