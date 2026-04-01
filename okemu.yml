@@ -1,16 +1,14 @@
 logFile: okemu.log
 logLevel: info
-monitorFile: rom/MON_r8_9c6c6546.bin
-cpmFile: rom/CPM_r8_bc0695e4.bin
-#monitorFile: rom/MON_r5.bin
-#cpmFile: rom/CPM_r5.bin
+monitorFile: rom/MON_r8_9c6c6546.mon
+cpmFile: rom/CPM_r8_bc0695e4.cpm
 fdc:
     - autoLoad: true
       autoSave: true
       floppyFile: floppy/floppyB.okd
-    - autoLoad: true
-      autoSave: true
-      floppyFile: floppy/floppyC.okd
+    - autoLoad: false
+      autoSave: false
+      floppyFile: floppy/empty.okd
 debugger:
     enabled: true
     host: localhost

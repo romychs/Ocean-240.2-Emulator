@@ -1,4 +1,6 @@
 *.bak
 *.lst
 *.tmp
+*.sh
 .idea/
+src/.idea/

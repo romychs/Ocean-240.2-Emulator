@@ -1,0 +1,23 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "make (sjasmplus)",
+            "type": "shell",
+            "command": "sjasmplus",
+            "args": [
+                "--i8080",
+                "--sld=main.sld",
+                "--raw=main.obj",
+                "--fullpath",
+                "--lst",
+                "main.asm"
+            ],
+            "problemMatcher": "$problem-matcher-sjasmplus",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ]
+}
