@@ -15,9 +15,9 @@
 - В отличие от оригинала, который использует CPU КР580ВМ80, в эмуляторе использована эмуляция Z80.
   Эмулятор Z80 у меня уже был написан, поэтому использовал его, возможно, позже, обрежу его до i8080.
   Из за меньшего количества тактов у некоторых инструкций Z80, эмуляция работает несколько быстрее оригинала.
-- Эмулируются 2 дисковода с дисками 720К, такой вариант используется с CP/M и Монитором R8.
+- Эмулируются 2 дисковода с дисками 720К, такой вариант используется с обазами ROM CP/M и Монитора R8.
 - Работает под современными ОС Windows и Linux. Используется фреймворк [Fyne](https://fyne.io/), что позволяет скомпилировать код и под другие платформы, но я не пробовал.
-- Поддерживает ZRCP - протокол отладки эмулятора [ZEsarUX](https://github.com/chernandezba/zesarux)). Это позволяет использовать среду разработки VSCode с плагином DeZog
+- Поддерживает ZRCP - протокол отладки эмулятора [ZEsarUX](https://github.com/chernandezba/zesarux). Это позволяет использовать среду разработки VSCode с плагином DeZog
 для отладки исходного кода прямо в эмуляторе.
 
 ## Возможности отладки
@@ -41,48 +41,48 @@
 
 ### Список доступных команд отладчика
 
-    __about__                   Shows about message
-    __clear-membreakpoints__    Clear all memory breakpoints
-    __close-all-menus__         Close all visible dialogs
-    __cpu-code-coverage__       Sets cpu code coverage parameters
-    __cpu-history__             Runs cpu history actions
-    __cpu-step__                Run single opcode cpu step
-    __disable-breakpoint__      Disable specific breakpoint
-    __disable-breakpoints__     Disable all breakpoints
-    __disassemble__             Disassemble at address
-    __enable-breakpoint__       Enable specific breakpoint
-    __enable-breakpoints__      Enable breakpoints
-    __enter-cpu-step__          Enter cpu step to step mode
-    __evaluate__                Evaluate expression
-    __exit-cpu-step__           Exit cpu step to step mode
-    __extended-stack__          Sets extended stack parameters, which allows you to see what kind of values are in the stack
-    __get-cpu-frequency__       Get cpu frequency in HZ
-    __get-current-machine__     Returns current machine name
-    __get-machines__            Returns list of emulated machines
-    __get-membreakpoints__      Get memory breakpoints list
-    __get-memory-pages__        Returns current state of memory pages
-    __get-os__                  Shows emulator operating system
-    __get-registers__           Get CPU registers
-    __get-tstates-partial__     Get the t-states partial counter
-    __get-tstates__             Get the t-states counter
-    __get-version__             Shows emulator version
-    __hard-reset-cpu__          Hard resets the machine
-    __help__                    Shows help screen or command help
-    __hexdump__                 Dumps memory at address, showing hex and ascii
-    __load-binary__             Load binary file "file" at address "addr" with length "len", on the current memory zone
-    __quit__                    Closes connection
-    __read-memory__             Dumps memory at address
-    __reset-tstates-partial__   Resets the t-states partial counter
-    __run__                     Run cpu when on cpu step mode
-    __save-binary__             Save binary file "file" from address "addr" with length "len", from the current memory zone
-    __set-breakpoint__          Sets a breakpoint at desired index entry with condition
-    __set-breakpointaction__    Sets a breakpoint action at desired index entry
-    __set-breakpointpasscount__ Set pass count for breakpoint
-    __set-debug-settings__      Set debug settings on remote command protocol
-    __set-machine__             Set machine
-    __set-membreakpoint__       Sets a memory breakpoint starting at desired address entry for type
-    __set-register__            Changes register value
-    __snapshot-load__           Loads a snapshot
-    __snapshot-save__           Saves a snapshot
-    __write-memory__            Writes a sequence of bytes starting at desired address on memory
-    __write-port__              Writes value at port
+    about                   Shows about message
+    clear-membreakpoints    Clear all memory breakpoints
+    close-all-menus         Close all visible dialogs
+    cpu-code-coverage       Sets cpu code coverage parameters
+    cpu-history             Runs cpu history actions
+    cpu-step                Run single opcode cpu step
+    disable-breakpoint      Disable specific breakpoint
+    disable-breakpoints     Disable all breakpoints
+    disassemble             Disassemble at address
+    enable-breakpoint       Enable specific breakpoint
+    enable-breakpoints      Enable breakpoints
+    enter-cpu-step          Enter cpu step to step mode
+    evaluate                Evaluate expression
+    exit-cpu-step           Exit cpu step to step mode
+    extended-stack          Sets extended stack parameters, which allows you to see what kind of values are in the stack
+    get-cpu-frequency       Get cpu frequency in HZ
+    get-current-machine     Returns current machine name
+    get-machines            Returns list of emulated machines
+    get-membreakpoints      Get memory breakpoints list
+    get-memory-pages        Returns current state of memory pages
+    get-os                  Shows emulator operating system
+    get-registers           Get CPU registers
+    get-tstates-partial     Get the t-states partial counter
+    get-tstates             Get the t-states counter
+    get-version             Shows emulator version
+    hard-reset-cpu          Hard resets the machine
+    help                    Shows help screen or command help
+    hexdump                 Dumps memory at address, showing hex and ascii
+    load-binary             Load binary file "file" at address "addr" with length "len", on the current memory zone
+    quit                    Closes connection
+    read-memory             Dumps memory at address
+    reset-tstates-partial   Resets the t-states partial counter
+    run                     Run cpu when on cpu step mode
+    save-binary             Save binary file "file" from address "addr" with length "len", from the current memory zone
+    set-breakpoint          Sets a breakpoint at desired index entry with condition
+    set-breakpointaction    Sets a breakpoint action at desired index entry
+    set-breakpointpasscount Set pass count for breakpoint
+    set-debug-settings      Set debug settings on remote command protocol
+    set-machine             Set machine
+    set-membreakpoint       Sets a memory breakpoint starting at desired address entry for type
+    set-register            Changes register value
+    snapshot-load           Loads a snapshot
+    snapshot-save           Saves a snapshot
+    write-memory            Writes a sequence of bytes starting at desired address on memory
+    write-port              Writes value at port

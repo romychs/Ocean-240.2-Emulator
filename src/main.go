@@ -22,7 +22,7 @@ import (
 	"github.com/loov/hrtime"
 )
 
-var Version = "v1.0.0"
+var Version = "v1.0.1"
 var BuildTime = "2026-04-01"
 
 const defaultTimerClkPeriod = 430
