@@ -70,6 +70,10 @@ github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZN
 github.com/rogpeppe/go-internal v1.9.0/go.mod h1:WtVeX8xhTBvf0smdhujwtBcq4Qrzq/fJaraNFVN+nFs=
 github.com/rogpeppe/go-internal v1.10.0 h1:TMyTOH3F/DB16zRVcYyreMH6GnZZrwQVAoYjRBZyWFQ=
 github.com/rogpeppe/go-internal v1.10.0/go.mod h1:UQnix2H7Ngw/k4C5ijL5+65zddjncjaFoBhdsK/akog=
+github.com/romychs/z80go v1.0.0 h1:umlM6U/JPt/qSAUhxu51wSK5a98gJZwhTu34Xj+5Ml8=
+github.com/romychs/z80go v1.0.0/go.mod h1:bah4U8xv8qWfRJsrioP643bri+LDzKyC03E718YS9wI=
+github.com/romychs/z80go v1.0.1 h1:rBYxvvdWHGsitZMXTheZGk6lB9VIepUUVWMxPVWimPY=
+github.com/romychs/z80go v1.0.1/go.mod h1:bah4U8xv8qWfRJsrioP643bri+LDzKyC03E718YS9wI=
 github.com/rymdport/portal v0.4.2 h1:7jKRSemwlTyVHHrTGgQg7gmNPJs88xkbKcIL3NlcmSU=
 github.com/rymdport/portal v0.4.2/go.mod h1:kFF4jslnJ8pD5uCi17brj/ODlfIidOxlgUDTO5ncnC4=
 github.com/shopspring/decimal v1.3.1 h1:2Usl1nmF/WZucqkFZhnfFYxxxu8LG21F6nPQBE5gKV8=

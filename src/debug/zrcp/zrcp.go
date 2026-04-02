@@ -10,14 +10,13 @@ import (
 	"okemu/debug"
 	"okemu/debug/breakpoint"
 	"okemu/okean240"
-	"okemu/z80"
-	"okemu/z80/dis"
 	"os"
 	"runtime"
-	"strings"
-	//"okemu/logger"
 	"strconv"
+	"strings"
 
+	"github.com/romychs/z80go"
+	"github.com/romychs/z80go/dis"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -387,24 +386,24 @@ func (p *ZRCP) handleLoadBinary() (string, error) {
 // registersResponse Build string
 // PC=%4x SP=%4x AF=%4x BC=%4x HL=%4x DE=%4x IX=%4x IY=%4x AF'=%4x BC'=%4x HL'=%4x DE'=%4x I=%2x
 // R=%2x  F=%s F'=%s MEMPTR=%4x IM0 IFF-- VPS: 0 MMU=00000000000000000000000000000000
-func (p *ZRCP) registersResponse(state *z80.CPU) string {
+func (p *ZRCP) registersResponse(state *z80go.CPU) string {
 	resp := fmt.Sprintf(getRegistersResponse,
 		state.PC,
 		state.SP,
-		toW(state.A, state.Flags.GetFlags()),
+		toW(state.A, state.Flags.AsByte()),
 		toW(state.B, state.C),
 		toW(state.H, state.L),
 		toW(state.D, state.E),
 		state.IX,
 		state.IY,
-		toW(state.AAlt, state.FlagsAlt.GetFlags()),
+		toW(state.AAlt, state.FlagsAlt.AsByte()),
 		toW(state.BAlt, state.CAlt),
 		toW(state.HAlt, state.LAlt),
 		toW(state.DAlt, state.EAlt),
 		state.I,
 		state.R,
-		state.Flags.GetFlagsStr(),
-		state.FlagsAlt.GetFlagsStr(),
+		state.Flags.String(),
+		state.FlagsAlt.String(),
 		state.MemPtr,
 		iifStr(state.Iff1, state.Iff2),
 		p.getMMU(),
@@ -426,17 +425,17 @@ func (p *ZRCP) getNBytes(addr uint16, n int) string {
 // stateResponse build string, represent history state
 // PC=003a SP=ff46 AF=005c BC=174b HL=107f DE=0006 IX=ffff IY=5c3a AF'=0044 BC'=ffff HL'=ffff DE'=5cb9 I=3f R=78
 // IM0 IFF-- (PC)=2a785c23 (SP)=107f MMU=00000000000000000000000000000000
-func (p *ZRCP) stateResponse(state *z80.CPU) string {
+func (p *ZRCP) stateResponse(state *z80go.CPU) string {
 	resp := fmt.Sprintf(getStateResponse,
 		state.PC,
 		state.SP,
-		toW(state.A, state.Flags.GetFlags()),
+		toW(state.A, state.Flags.AsByte()),
 		toW(state.B, state.C),
 		toW(state.H, state.L),
 		toW(state.D, state.E),
 		state.IX,
 		state.IY,
-		toW(state.AAlt, state.FlagsAlt.GetFlags()),
+		toW(state.AAlt, state.FlagsAlt.AsByte()),
 		toW(state.BAlt, state.CAlt),
 		toW(state.HAlt, state.LAlt),
 		toW(state.DAlt, state.EAlt),
@@ -579,9 +578,14 @@ func (p *ZRCP) getExtendedStack() (string, error) {
 	var resp strings.Builder
 	spEnd := sp - size*2
 	es, err := p.computer.ExtendedStack()
+
 	if err == nil {
 		for i := sp; i > spEnd; i -= 2 {
-			resp.WriteString(fmt.Sprintf("%04XH %s\n", p.computer.MemRead(i), PushValueTypeName[es[i]]))
+			pvt, ok := es[i]
+			if !ok {
+				pvt = z80go.PushValueTypeDefault
+			}
+			resp.WriteString(fmt.Sprintf("%04XH %s\n", p.computer.MemRead(i), PushValueTypeName[pvt]))
 		}
 	}
 	log.Tracef("extended-stack get: %s", resp)

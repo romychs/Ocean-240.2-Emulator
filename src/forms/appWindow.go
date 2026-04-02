@@ -14,13 +14,14 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
-func NewMainWindow(computer *okean240.ComputerType, config *config.OkEmuConfig) (*fyne.Window, *canvas.Raster, *widget.Label) {
-	emulatorApp := app.New()
-	w := emulatorApp.NewWindow("Океан 240.2")
+func NewMainWindow(computer *okean240.ComputerType, config *config.OkEmuConfig, title string) (*fyne.Window, *canvas.Raster, *widget.Label) {
+	emulatorApp := app.NewWithID("oceanemu-0001-0000-0001-8f33aba1fc0e")
+	w := emulatorApp.NewWindow(title)
 
 	// Handle all keys typed in main window canvas
 	w.Canvas().SetOnTypedKey(
@@ -71,20 +72,44 @@ func NewMainWindow(computer *okean240.ComputerType, config *config.OkEmuConfig) 
 	return &w, raster, label
 }
 
+var floppyDriveExt = []string{".okd", ".dat", ".bin", ".raw"}
+
+func newOkdOpenDialog(drive byte, c *okean240.ComputerType, w fyne.Window, config *config.OkEmuConfig) *dialog.FileDialog {
+	fod := dialog.NewFileOpen(func(reader fyne.URIReadCloser, err error) {
+		// Read file list error occurred
+		if err != nil {
+			dialog.ShowError(err, w)
+			return
+		}
+		// User Cancelled
+		if reader == nil {
+			return
+		}
+		// User select Open button, load data
+		err = c.LoadFloppyData(drive, reader)
+		if err != nil {
+			dialog.ShowError(err, w)
+		}
+		_ = reader.Close()
+	}, w)
+	fod.SetFileName(config.FDC[drive].FloppyFile)
+	fod.SetFilter(storage.NewExtensionFileFilter(floppyDriveExt))
+	return fod
+}
+
 func newToolbar(c *okean240.ComputerType, w fyne.Window, a fyne.App, config *config.OkEmuConfig) *fyne.Container {
 	hBox := container.NewHBox()
+
 	for d := 0; d < fdc.TotalDrives; d++ {
 		hBox.Add(widget.NewLabel(string(rune(66+d)) + ":"))
 		hBox.Add(widget.NewToolbar(
+			// Button Open
+			widget.NewToolbarAction(theme.FolderOpenIcon(), func() {
+				newOkdOpenDialog(byte(d), c, w, config).Show()
+			}),
+			// Button Save
 			widget.NewToolbarAction(theme.DocumentSaveIcon(), func() {
 				err := c.SaveFloppy(byte(d))
-				if err != nil {
-					dialog.ShowError(err, w)
-				}
-			}),
-			//widget.NewToolbarSpacer(),
-			widget.NewToolbarAction(theme.FolderOpenIcon(), func() {
-				err := c.LoadFloppy(byte(d))
 				if err != nil {
 					dialog.ShowError(err, w)
 				}

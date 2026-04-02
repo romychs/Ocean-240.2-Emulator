@@ -17,7 +17,7 @@ func (c *ComputerType) IORead(port uint16) uint8 {
 		irr := c.pic.IRR()
 		// if irq from keyboard and no ACK applied, re-fire
 		if irr&RstKbdMask != 0 && !c.kbAck.Load() {
-			log.Tracef("KBD IRQ REFIRE PC=%04X", c.cpu.PC())
+			log.Tracef("KBD IRQ REFIRE PC=%04X", c.cpu.PC)
 			c.pic.SetIRQ(RstKbdNo)
 		}
 		return irr
@@ -31,7 +31,7 @@ func (c *ComputerType) IORead(port uint16) uint8 {
 		return c.usart.Receive()
 	case KbdDd78pa:
 		// Keyboard data
-		log.Tracef("KBD RD: %d, PC=%04X", c.ioPorts[KbdDd78pa], c.cpu.PC())
+		log.Tracef("KBD RD: %d, PC=%04X", c.ioPorts[KbdDd78pa], c.cpu.PC)
 		return c.ioPorts[KbdDd78pa]
 	case KbdDd78pb:
 		return c.ioPorts[KbdDd78pb]

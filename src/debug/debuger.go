@@ -3,9 +3,9 @@ package debug
 import (
 	"fmt"
 	"okemu/debug/breakpoint"
-	"okemu/z80"
-	"okemu/z80/dis"
 
+	"github.com/romychs/z80go"
+	"github.com/romychs/z80go/dis"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -23,7 +23,7 @@ type Debugger struct {
 	cpuHistoryEnabled  bool
 	cpuHistoryStarted  bool
 	cpuHistoryMaxSize  int
-	cpuHistory         []*z80.CPU
+	cpuHistory         []*z80go.CPU
 	memBreakpoints     [65536]byte
 }
 
@@ -38,7 +38,7 @@ func NewDebugger() *Debugger {
 		cpuHistoryEnabled:  false,
 		cpuHistoryStarted:  false,
 		cpuHistoryMaxSize:  0,
-		cpuHistory:         []*z80.CPU{},
+		cpuHistory:         []*z80go.CPU{},
 	}
 	return &d
 }
@@ -85,14 +85,14 @@ func (d *Debugger) SetCpuHistoryMaxSize(size int) {
 }
 
 func (d *Debugger) CpuHistoryClear() {
-	d.cpuHistory = make([]*z80.CPU, 0)
+	d.cpuHistory = make([]*z80go.CPU, 0)
 }
 
 func (d *Debugger) CpuHistorySize() int {
 	return len(d.cpuHistory)
 }
 
-func (d *Debugger) CpuHistory(index int) *z80.CPU {
+func (d *Debugger) CpuHistory(index int) *z80go.CPU {
 	if index >= 0 && index < len(d.cpuHistory) {
 		return d.cpuHistory[index]
 	}
@@ -108,9 +108,9 @@ func (d *Debugger) SetCpuHistoryStarted(started bool) {
 	d.cpuHistoryStarted = started
 }
 
-func (d *Debugger) SaveHistory(state *z80.CPU) {
+func (d *Debugger) SaveHistory(state *z80go.CPU) {
 	if d.cpuHistoryEnabled && d.cpuHistoryMaxSize > 0 && d.cpuHistoryStarted {
-		d.cpuHistory = append([]*z80.CPU{state}, d.cpuHistory...)
+		d.cpuHistory = append([]*z80go.CPU{state}, d.cpuHistory...)
 		if len(d.cpuHistory) > d.cpuHistoryMaxSize {
 			d.cpuHistory = d.cpuHistory[0 : d.cpuHistoryMaxSize-1]
 		}

@@ -11,7 +11,6 @@ import (
 	"okemu/forms"
 	"okemu/logger"
 	"okemu/okean240"
-	"okemu/z80/dis"
 	"runtime"
 	"sync/atomic"
 	"time"
@@ -20,6 +19,8 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/widget"
 	"github.com/loov/hrtime"
+	"github.com/romychs/z80go/dis"
+	log "github.com/sirupsen/logrus"
 )
 
 var Version = "v1.0.1"
@@ -27,6 +28,9 @@ var BuildTime = "2026-04-01"
 
 const defaultTimerClkPeriod = 430
 const defaultCpuClkPeriod = 311
+
+const windowsTimerClkPeriod = 230
+const windowsCpuClkPeriod = 111
 
 ////go:embed hex/m80.hex
 //var serialBytes []byte
@@ -37,23 +41,7 @@ const defaultCpuClkPeriod = 311
 var needReset = false
 
 func main() {
-
 	fmt.Printf("Starting Ocean-240.2 emulator %s build at %s\n", Version, BuildTime)
-
-	//f, err := os.Create("okemu.prof")
-	//if err != nil {
-	//	log.Warn("Can not create prof file", err)
-	//}
-	//defer func(f *os.File) {
-	//	err := f.Close()
-	//	if err != nil {
-	//		log.Warn("Can not close prof file", err)
-	//	}
-	//}(f)
-	//if err := pprof.StartCPUProfile(f); err != nil {
-	//	log.Warn("Can not start CPU profiling", err)
-	//}
-	//defer pprof.StopCPUProfile()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -68,17 +56,22 @@ func main() {
 
 	// Reconfigure logging by config values
 	// logger.ReconfigureLogging(conf)
+	if runtime.GOOS == "windows" {
+		cpuClkPeriod.Store(windowsCpuClkPeriod)
+		timerClkPeriod.Store(windowsTimerClkPeriod)
+	} else {
+		cpuClkPeriod.Store(defaultCpuClkPeriod)
+		timerClkPeriod.Store(defaultTimerClkPeriod)
+	}
 
 	debugger := debug.NewDebugger()
 	computer := okean240.NewComputer(conf, debugger)
-
-	//computer.SetSerialBytes(serialBytes)
 
 	computer.AutoLoadFloppy()
 
 	disassm := dis.NewDisassembler(computer)
 
-	w, raster, label := forms.NewMainWindow(computer, conf)
+	w, raster, label := forms.NewMainWindow(computer, conf, "Океан 240.2 "+Version)
 
 	//dezog := dzrp.NewDZRP(conf, debugger, disassm, computer)
 	dezog := zrcp.NewZRCP(conf, debugger, disassm, computer)
@@ -124,7 +117,7 @@ func screen(ctx context.Context, computer *okean240.ComputerType, raster *canvas
 
 					adjustPeriods(computer, cpuFreq, timerFreq)
 
-					//log.Debugf("Cpu clk period: %d, Timer clock period: %d, period: %1.3f", cpuClkPeriod.Load(), timerClkPeriod.Load(), period)
+					log.Debugf("Cpu clk period: %d, Timer clock period: %d, frame time: %1.3fms", cpuClkPeriod.Load(), timerClkPeriod.Load(), period/50.0)
 					//pre = computer.Cycles()
 					pre = cpuTicks.Load()
 					preTim = timerTicks.Load()
@@ -141,32 +134,46 @@ func screen(ctx context.Context, computer *okean240.ComputerType, raster *canvas
 // adjustPeriods Adjust periods for CPU and Timer clock frequencies
 func adjustPeriods(c *okean240.ComputerType, cpuFreq float64, timerFreq float64) {
 	// adjust cpu clock if not full speed
-	if c.FullSpeed() {
-		if cpuFreq > okean240.CPUFrequencyHi && cpuClkPeriod.Load() < defaultCpuClkPeriod+defaultCpuClkPeriod/2 {
-			cpuClkPeriod.Add(1)
-		} else if cpuFreq < okean240.CPUFrequencyLow && cpuClkPeriod.Load() > 3 {
-			cpuClkPeriod.Add(-1)
-		}
+	if !c.FullSpeed() {
+		calcPeriod(cpuFreq, okean240.CPUFrequency, okean240.CPUFrequencyHi, okean240.CPUFrequencyLow, &cpuClkPeriod)
 	}
 	// adjust timerClock clock
-	if timerFreq > okean240.TimerFrequencyHi && timerClkPeriod.Load() < defaultTimerClkPeriod+defaultTimerClkPeriod/2 {
-		timerClkPeriod.Add(1)
-	} else if timerFreq < okean240.TimerFrequencyLow && timerClkPeriod.Load() > 3 {
-		timerClkPeriod.Add(-1)
+	calcPeriod(timerFreq, okean240.TimerFrequency, okean240.TimerFrequencyHi, okean240.TimerFrequencyLow, &timerClkPeriod)
+}
+
+// calcPeriod  calc new value period to adjust frequency of timer or CPU
+func calcPeriod(curFreq float64, destFreq float64, hiLimit float64, loLimit float64, period *atomic.Int64) {
+	if curFreq > hiLimit && period.Load() < 2000 {
+		period.Add(calcDelta(curFreq, destFreq))
+	} else if curFreq < loLimit && period.Load() > 0 {
+		period.Add(-calcDelta(curFreq, destFreq))
+		if period.Load() < 0 {
+			period.Store(0)
+		}
 	}
+}
+
+// calcDelta  calculate step to change period
+func calcDelta(currentFreq float64, destFreq float64) int64 {
+	delta := int64(math.Round(math.Abs(destFreq-currentFreq) * 100))
+	if delta < 1 {
+		return 1
+	} else if delta > 10 {
+		return 10
+	}
+	return delta
 }
 
 func formatLabel(computer *okean240.ComputerType, freq float64, freqTim float64) string {
-	return fmt.Sprintf("Screen size: %dx%d | Fcpu: %1.3fMHz | Ftmr: %1.3fMHz | Debugger: %s", computer.ScreenWidth(), computer.ScreenHeight(), freq, freqTim, computer.DebuggerState())
+	return fmt.Sprintf("Screen size: %dx%d | Fcpu: %1.3fMHz | Ftmr: %1.3fMHz | Debugger: %s",
+		computer.ScreenWidth(), computer.ScreenHeight(), freq, freqTim, computer.DebuggerState())
 }
 
 var timerTicks atomic.Uint64
-
 var timerClkPeriod atomic.Int64 // period in nanos for 1.5MHz frequency
 var cpuClkPeriod atomic.Int64   // period in nanos for 2.5MHz frequency
 
 func timerClock(computer *okean240.ComputerType) {
-	timerClkPeriod.Store(defaultTimerClkPeriod)
 	timeStart := hrtime.Now()
 	for {
 		elapsed := hrtime.Since(timeStart)
@@ -183,7 +190,6 @@ func timerClock(computer *okean240.ComputerType) {
 var cpuTicks atomic.Uint64
 
 func cpuClock(computer *okean240.ComputerType, dezog debug.DEZOG) {
-	cpuClkPeriod.Store(defaultCpuClkPeriod)
 
 	cpuTicks.Store(0)
 	nextTick := uint64(0)
@@ -223,3 +229,20 @@ func cpuClock(computer *okean240.ComputerType, dezog debug.DEZOG) {
 	}
 
 }
+
+//func initPerf() {
+//	f, err := os.Create("okemu.prof")
+//	if err != nil {
+//		log.Warn("Can not create prof file", err)
+//	}
+//	defer func(f *os.File) {
+//		err := f.Close()
+//		if err != nil {
+//			log.Warn("Can not close prof file", err)
+//		}
+//	}(f)
+//	if err := pprof.StartCPUProfile(f); err != nil {
+//		log.Warn("Can not start CPU profiling", err)
+//	}
+//	defer pprof.StopCPUProfile()
+//}

@@ -15,24 +15,25 @@ import (
 	"okemu/okean240/pic"
 	"okemu/okean240/pit"
 	"okemu/okean240/usart"
-	"okemu/z80"
 	"os"
 	"strconv"
 	"sync/atomic"
 
-	"okemu/z80/c99"
-
+	"fyne.io/fyne/v2"
+	"github.com/romychs/z80go"
 	log "github.com/sirupsen/logrus"
 )
 
 const DefaultCPUFrequency = 2_500_000
-const CPUFrequencyLow float64 = 2.47
-const CPUFrequencyHi float64 = 2.53
+const CPUFrequencyLow float64 = 2.48
+const CPUFrequency float64 = 2.50
+const CPUFrequencyHi float64 = 2.52
 const TimerFrequencyLow float64 = 1.47
+const TimerFrequency float64 = 1.50
 const TimerFrequencyHi float64 = 1.53
 
 type ComputerType struct {
-	cpu            *c99.Z80
+	cpu            *z80go.CPU
 	memory         Memory
 	ioPorts        [256]byte
 	cycles         uint64
@@ -61,8 +62,8 @@ type ComputerType struct {
 }
 
 type Snapshot struct {
-	CPU    *z80.CPU `json:"cpu,omitempty"`
-	Memory string   `json:"memory,omitempty"`
+	CPU    *z80go.CPU `json:"cpu,omitempty"`
+	Memory string     `json:"memory,omitempty"`
 }
 
 const VRAMBlock0 = 3
@@ -85,11 +86,11 @@ const VidColorBit = 0x40
 //	SetCPUState(state *z80.CPU)
 //}
 
-func (c *ComputerType) CPUState() *z80.CPU {
+func (c *ComputerType) CPUState() *z80go.CPU {
 	return c.cpu.GetState()
 }
 
-func (c *ComputerType) SetCPUState(state *z80.CPU) {
+func (c *ComputerType) SetCPUState(state *z80go.CPU) {
 	c.cpu.SetState(state)
 }
 
@@ -112,7 +113,7 @@ func NewComputer(cfg *config.OkEmuConfig, deb *debug.Debugger) *ComputerType {
 	c.memory = Memory{}
 	c.memory.Init(cfg.MonitorFile, cfg.CPMFile)
 
-	c.cpu = c99.New(&c)
+	c.cpu = z80go.NewCPU(&c)
 
 	c.cycles = 0
 	c.tstatesPartial = 0
@@ -177,7 +178,7 @@ func (c *ComputerType) getContext() map[string]interface{} {
 	ctx["BC"] = uint16(s.B)<<8 | uint16(s.C)
 	ctx["DE"] = uint16(s.D)<<8 | uint16(s.E)
 	ctx["HL"] = uint16(s.H)<<8 | uint16(s.L)
-	ctx["AF"] = uint16(s.A)<<8 | uint16(s.Flags.GetFlags())
+	ctx["AF"] = uint16(s.A)<<8 | uint16(s.Flags.AsByte())
 	ctx["MEM"] = c.memory.MemRead
 	ctx["IO"] = c.IORead
 	return ctx
@@ -318,10 +319,6 @@ func (c *ComputerType) TimerClk() {
 	}
 }
 
-func (c *ComputerType) LoadFloppy(drive byte) error {
-	return c.fdc.LoadFloppy(drive)
-}
-
 func (c *ComputerType) SaveFloppy(drive byte) error {
 	return c.fdc.SaveFloppy(drive)
 }
@@ -458,7 +455,7 @@ func (c *ComputerType) AutoSaveFloppy() {
 func (c *ComputerType) AutoLoadFloppy() {
 	for drv := byte(0); drv < fdc.TotalDrives; drv++ {
 		if c.config.FDC[drv].AutoLoad {
-			e := c.fdc.LoadFloppy(drv)
+			e := c.fdc.LoadFloppyFile(drv, c.config.FDC[drv].FloppyFile)
 			if e != nil {
 				log.Error(e)
 			}
@@ -482,7 +479,7 @@ func (c *ComputerType) SetExtendedStack(enabled bool) {
 	c.cpu.SetExtendedStack(enabled)
 }
 
-func (c *ComputerType) ExtendedStack() ([]byte, error) {
+func (c *ComputerType) ExtendedStack() (map[uint16]z80go.PushValueType, error) {
 	return c.cpu.ExtendedStack()
 }
 
@@ -532,4 +529,8 @@ func (c *ComputerType) SetPendingReset(pending bool) {
 
 func (c *ComputerType) PendingReset() bool {
 	return c.pendingReset.Load()
+}
+
+func (c *ComputerType) LoadFloppyData(drive byte, reader fyne.URIReadCloser) error {
+	return c.fdc.LoadFloppyData(drive, reader)
 }

@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"io"
 	"okemu/config"
 	"os"
 	"slices"
@@ -330,12 +331,12 @@ func (f *FloppyDriveController) Drq() byte {
 	return f.drq
 }
 
-func (f *FloppyDriveController) LoadFloppy(drive byte) error {
-	if drive < TotalDrives {
-		return loadFloppy(&f.sectors[drive], f.config.FDC[drive].FloppyFile)
-	}
-	return errors.New("DriveNo " + strconv.Itoa(int(drive)) + " out of range")
-}
+//func (f *FloppyDriveController) LoadFloppy(drive byte) error {
+//	if drive < TotalDrives {
+//		return f.LoadConfiguredFloppy(drive)
+//	}
+//	return errors.New("DriveNo " + strconv.Itoa(int(drive)) + " out of range")
+//}
 
 func (f *FloppyDriveController) SaveFloppy(drive byte) error {
 	if drive < TotalDrives {
@@ -401,8 +402,28 @@ func (f *FloppyDriveController) Sector() byte {
 	return f.sectorNo
 }
 
-// loadFloppy load floppy image to sector buffer from file
-func loadFloppy(sectors *[SizeInSectors]SectorType, fileName string) error {
+func (f *FloppyDriveController) LoadFloppyData(drive byte, reader io.ReadCloser) error {
+	if drive >= TotalDrives {
+		return errors.New("Drive " + strconv.Itoa(int(drive+65)) + " out of range")
+	}
+	var err error
+	for sector := 0; sector < SizeInSectors; sector++ {
+		var n int
+		n, err = reader.Read(f.sectors[drive][sector])
+		if n != SectorSize {
+			log.Error("Load floppy error, sector size: %d <> %d", n, SectorSize)
+		}
+		if err != nil {
+			log.Error("Load floppy content failed:", err)
+			return err
+		}
+	}
+	return nil
+}
+
+// LoadFloppyFile load floppy image to sector buffer from file
+func (f *FloppyDriveController) LoadFloppyFile(drive byte, fileName string) error {
+	//fileName := f.config.FDC[drive].FloppyFile
 	log.Debugf("Load Floppy content from file %s.", fileName)
 	file, err := os.Open(fileName)
 	if err != nil {
@@ -416,19 +437,7 @@ func loadFloppy(sectors *[SizeInSectors]SectorType, fileName string) error {
 			log.Error(err)
 		}
 	}(file)
-
-	for sector := 0; sector < SizeInSectors; sector++ {
-		var n int
-		n, err = file.Read(sectors[sector])
-		if n != SectorSize {
-			log.Error("Load floppy error, sector size: %d <> %d", n, SectorSize)
-		}
-		if err != nil {
-			log.Error("Load floppy content failed:", err)
-			return err
-		}
-	}
-	return nil
+	return f.LoadFloppyData(drive, file)
 }
 
 // saveFloppy Save specified sectors to file with name fileName
