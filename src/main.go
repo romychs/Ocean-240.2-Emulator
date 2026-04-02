@@ -55,7 +55,8 @@ func main() {
 	conf := config.GetConfig()
 
 	// Reconfigure logging by config values
-	// logger.ReconfigureLogging(conf)
+	logger.ReconfigureLogging(conf)
+
 	if runtime.GOOS == "windows" {
 		cpuClkPeriod.Store(windowsCpuClkPeriod)
 		timerClkPeriod.Store(windowsTimerClkPeriod)
@@ -86,6 +87,7 @@ func main() {
 
 	(*w).ShowAndRun()
 	computer.AutoSaveFloppy()
+	logger.CloseLogs()
 }
 
 func screen(ctx context.Context, computer *okean240.ComputerType, raster *canvas.Raster, label *widget.Label) {
@@ -158,8 +160,8 @@ func calcDelta(currentFreq float64, destFreq float64) int64 {
 	delta := int64(math.Round(math.Abs(destFreq-currentFreq) * 100))
 	if delta < 1 {
 		return 1
-	} else if delta > 10 {
-		return 10
+	} else if delta > 8 {
+		return 8
 	}
 	return delta
 }
