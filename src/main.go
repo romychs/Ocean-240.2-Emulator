@@ -29,11 +29,11 @@ var BuildTime = "2026-04-02"
 const defaultTimerClkPeriod = 433
 const defaultCpuClkPeriod = 310
 
-const windowsTimerClkPeriod = 397
-const windowsCpuClkPeriod = 298
+const windowsTimerClkPeriod = 400
+const windowsCpuClkPeriod = 300
 
-const maxDelta = 5
-const diffScale = 50.0
+const maxDelta = 3
+const diffScale = 15.0
 
 ////go:embed hex/m80.hex
 //var serialBytes []byte
@@ -111,19 +111,21 @@ func screen(ctx context.Context, computer *okean240.ComputerType, raster *canvas
 			// redraw screen here
 			fyne.Do(func() {
 				// status for every 50 frames
-				if frame%50 == 0 {
+				if frame%10 == 0 {
 					timeElapsed := hrtime.Since(timeStart)
 					period := float64(timeElapsed.Nanoseconds()) / 1_000_000.0
 
 					//cpuFreq = math.Round(float64(computer.Cycles()-pre)/period) / 1000.0
 					cpuFreq = math.Round(float64(cpuTicks.Load()-pre)/period) / 1000.0
 					timerFreq = math.Round(float64(timerTicks.Load()-preTim)/period) / 1000.0
-					label.SetText(formatLabel(computer, cpuFreq, timerFreq, cpuClkPeriod.Load(), timerClkPeriod.Load()))
 
 					adjustPeriods(computer, cpuFreq, timerFreq)
 
-					log.Debugf("Cpu clk period: %d, Timer clock period: %d, frame time: %1.3fms", cpuClkPeriod.Load(), timerClkPeriod.Load(), period/50.0)
-					logger.FlushLogs()
+					if frame%50 == 0 {
+  					    label.SetText(formatLabel(computer, cpuFreq, timerFreq, cpuClkPeriod.Load(), timerClkPeriod.Load()))
+					    log.Debugf("Cpu clk period: %d, Timer clock period: %d, frame time: %1.3fms", cpuClkPeriod.Load(), timerClkPeriod.Load(), period/5.0)
+					    logger.FlushLogs()
+                                        }
 					//pre = computer.Cycles()
 					pre = cpuTicks.Load()
 					preTim = timerTicks.Load()
