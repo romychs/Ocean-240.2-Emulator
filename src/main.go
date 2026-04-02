@@ -20,7 +20,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/loov/hrtime"
 	"github.com/romychs/z80go/dis"
-	log "github.com/sirupsen/logrus"
 )
 
 var Version = "v1.0.2"
@@ -115,18 +114,16 @@ func screen(ctx context.Context, computer *okean240.ComputerType, raster *canvas
 					timeElapsed := hrtime.Since(timeStart)
 					period := float64(timeElapsed.Nanoseconds()) / 1_000_000.0
 
-					//cpuFreq = math.Round(float64(computer.Cycles()-pre)/period) / 1000.0
 					cpuFreq = math.Round(float64(cpuTicks.Load()-pre)/period) / 1000.0
 					timerFreq = math.Round(float64(timerTicks.Load()-preTim)/period) / 1000.0
 
 					adjustPeriods(computer, cpuFreq, timerFreq)
 
 					if frame%50 == 0 {
-  					    label.SetText(formatLabel(computer, cpuFreq, timerFreq, cpuClkPeriod.Load(), timerClkPeriod.Load()))
-					    log.Debugf("Cpu clk period: %d, Timer clock period: %d, frame time: %1.3fms", cpuClkPeriod.Load(), timerClkPeriod.Load(), period/5.0)
-					    logger.FlushLogs()
-                                        }
-					//pre = computer.Cycles()
+						label.SetText(formatLabel(computer, cpuFreq, timerFreq))
+						//log.Debugf("Cpu clk period: %d, Timer clock period: %d, frame time: %1.3fms", cpuClkPeriod.Load(), timerClkPeriod.Load(), period/5.0)
+						//logger.FlushLogs()
+					}
 					pre = cpuTicks.Load()
 					preTim = timerTicks.Load()
 					timeStart = hrtime.Now()
@@ -172,9 +169,9 @@ func calcDelta(currentFreq float64, destFreq float64) int64 {
 	return delta
 }
 
-func formatLabel(computer *okean240.ComputerType, freq float64, freqTim float64, cpu int64, tmr int64) string {
-	return fmt.Sprintf("Screen size: %dx%d | Fcpu: %1.3fMHz | Ftmr: %1.3fMHz | Debugger: %s  CP:%d TP:%d",
-		computer.ScreenWidth(), computer.ScreenHeight(), freq, freqTim, computer.DebuggerState(), cpu, tmr)
+func formatLabel(computer *okean240.ComputerType, freq float64, freqTim float64) string {
+	return fmt.Sprintf("Screen size: %dx%d | Fcpu: %1.3fMHz | Ftmr: %1.3fMHz | Debugger: %s", //  CP:%d TP:%d",
+		computer.ScreenWidth(), computer.ScreenHeight(), freq, freqTim, computer.DebuggerState())
 }
 
 var timerTicks atomic.Uint64
