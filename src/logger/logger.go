@@ -46,10 +46,7 @@ func InitLogging() {
 // FlushLogs Flush logs if logging to file
 func FlushLogs() {
 	if logBuffer != nil {
-		err := logBuffer.Flush()
-		if err != nil {
-			return
-		}
+		_ = logBuffer.Flush()
 	}
 }
 
