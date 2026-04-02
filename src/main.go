@@ -29,11 +29,11 @@ var BuildTime = "2026-04-02"
 const defaultTimerClkPeriod = 433
 const defaultCpuClkPeriod = 310
 
-const windowsTimerClkPeriod = 280
-const windowsCpuClkPeriod = 151
+const windowsTimerClkPeriod = 397
+const windowsCpuClkPeriod = 298
 
 const maxDelta = 5
-const diffScale = 80.0
+const diffScale = 50.0
 
 ////go:embed hex/m80.hex
 //var serialBytes []byte
