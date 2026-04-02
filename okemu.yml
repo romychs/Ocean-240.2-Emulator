@@ -1,5 +1,5 @@
 logFile: okemu.log
-logLevel: info
+logLevel: debug
 monitorFile: rom/MON_r8_9c6c6546.mon
 cpmFile: rom/CPM_r8_bc0695e4.cpm
 fdc:

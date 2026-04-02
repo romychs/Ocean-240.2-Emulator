@@ -23,14 +23,17 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var Version = "v1.0.1"
-var BuildTime = "2026-04-01"
+var Version = "v1.0.2"
+var BuildTime = "2026-04-02"
 
 const defaultTimerClkPeriod = 430
-const defaultCpuClkPeriod = 311
+const defaultCpuClkPeriod = 310
 
-const windowsTimerClkPeriod = 230
-const windowsCpuClkPeriod = 111
+const windowsTimerClkPeriod = 280
+const windowsCpuClkPeriod = 151
+
+const maxDelta = 8
+const diffScale = 80.0
 
 ////go:embed hex/m80.hex
 //var serialBytes []byte
@@ -157,11 +160,11 @@ func calcPeriod(curFreq float64, destFreq float64, hiLimit float64, loLimit floa
 
 // calcDelta  calculate step to change period
 func calcDelta(currentFreq float64, destFreq float64) int64 {
-	delta := int64(math.Round(math.Abs(destFreq-currentFreq) * 100))
+	delta := int64(math.Round(math.Abs(destFreq-currentFreq) * diffScale))
 	if delta < 1 {
 		return 1
-	} else if delta > 8 {
-		return 8
+	} else if delta > maxDelta {
+		return maxDelta
 	}
 	return delta
 }
