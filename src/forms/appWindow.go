@@ -174,7 +174,7 @@ func newToolbar(c *okean240.ComputerType, w fyne.Window, a fyne.App, config *con
 	}))
 	hBox.Add(layout.NewSpacer())
 	hBox.Add(widget.NewButtonWithIcon("Reset", theme.MediaReplayIcon(), func() {
-		c.SetPendingReset(true)
+		c.SetPendingHardReset(true)
 		//computer.Reset(conf)
 	}))
 	return hBox

@@ -55,7 +55,7 @@ func main() {
 	conf := config.GetConfig()
 
 	// Reconfigure logging by config values
-	logger.ReconfigureLogging(conf)
+	//logger.ReconfigureLogging(conf)
 
 	if runtime.GOOS == "windows" {
 		cpuClkPeriod.Store(windowsCpuClkPeriod)
@@ -210,23 +210,28 @@ func cpuClock(computer *okean240.ComputerType, dezog debug.DEZOG) {
 
 			// 2.5MHz frequency
 			cpuTicks.Add(1)
-			if computer.FullSpeed() {
-				// Max frequency
-				_, bp, bpType = computer.Do()
-				nextTick = cpuTicks.Load()
-			} else if cpuTicks.Load() >= nextTick {
-				var t uint32
-				t, bp, bpType = computer.Do()
-				nextTick = cpuTicks.Load() + uint64(t)
-				runtime.Gosched()
-			}
+			if !computer.PendingHardReset() && !computer.PendingCpuReset() {
+				if computer.FullSpeed() {
+					// Max frequency
+					_, bp, bpType = computer.Do()
+					nextTick = cpuTicks.Load()
+				} else if cpuTicks.Load() >= nextTick {
+					var t uint32
+					t, bp, bpType = computer.Do()
+					nextTick = cpuTicks.Load() + uint64(t)
+					runtime.Gosched()
+				}
 
-			// Breakpoint hit
-			if bp > 0 || bpType != 0 {
-				dezog.BreakpointHit(bp, bpType)
-			}
-			if computer.PendingReset() {
-				computer.HardReset()
+				// Breakpoint hit
+				if bp > 0 || bpType != 0 {
+					dezog.BreakpointHit(bp, bpType)
+				}
+			} else {
+				if computer.PendingHardReset() {
+					computer.HardReset()
+				} else {
+					computer.Reset()
+				}
 			}
 		}
 	}

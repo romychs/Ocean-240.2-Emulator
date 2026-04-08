@@ -58,6 +58,7 @@ type ComputerType struct {
 	config           *config.OkEmuConfig
 	kbAck            atomic.Bool
 	fullSpeed        atomic.Bool
+	pendingCpuReset  atomic.Bool
 	pendingHardReset atomic.Bool
 }
 
@@ -118,18 +119,18 @@ func NewComputer(cfg *config.OkEmuConfig, deb *debug.Debugger) *ComputerType {
 	return &c
 }
 
-// Reset Only CPU reset
+// Reset Only CPU reset.
 func (c *ComputerType) Reset() {
 	// CPU
 	c.cpu.Reset()
 	c.cycles = 0
 	c.tstatesPartial = 0
+	c.pendingCpuReset.Store(false)
 }
 
-// HardReset full computer reset
+// HardReset full computer reset, Use SetPendingHardReset flag to set flag before call this method
 func (c *ComputerType) HardReset() {
 	c.cpu.Reset()
-
 	c.memory = Memory{}
 	c.memory.Init(c.config.MonitorFile, c.config.CPMFile)
 
@@ -154,6 +155,7 @@ func (c *ComputerType) HardReset() {
 	c.cpuFrequency = DefaultCPUFrequency
 	c.fullSpeed.Store(false)
 	c.pendingHardReset.Store(false)
+	c.pendingCpuReset.Store(false)
 
 }
 
@@ -534,12 +536,20 @@ func (c *ComputerType) FullSpeed() bool {
 	return c.fullSpeed.Load()
 }
 
-func (c *ComputerType) SetPendingReset(pending bool) {
+func (c *ComputerType) SetPendingHardReset(pending bool) {
 	c.pendingHardReset.Store(pending)
 }
 
-func (c *ComputerType) PendingReset() bool {
+func (c *ComputerType) PendingHardReset() bool {
 	return c.pendingHardReset.Load()
+}
+
+func (c *ComputerType) SetPendingCpuReset(pending bool) {
+	c.pendingCpuReset.Store(pending)
+}
+
+func (c *ComputerType) PendingCpuReset() bool {
+	return c.pendingCpuReset.Load()
 }
 
 func (c *ComputerType) LoadFloppyData(drive byte, reader fyne.URIReadCloser) error {

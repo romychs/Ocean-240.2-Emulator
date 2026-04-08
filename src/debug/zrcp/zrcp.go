@@ -713,7 +713,7 @@ func (p *ZRCP) handleGetRegisters() (string, error) {
 }
 
 func (p *ZRCP) handleHardResetCPU() (string, error) {
-	p.computer.HardReset()
+	p.computer.SetPendingCpuReset(true)
 	return "", nil
 }
 
