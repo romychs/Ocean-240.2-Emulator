@@ -22,8 +22,8 @@ import (
 	"github.com/romychs/z80go/dis"
 )
 
-var Version = "v1.0.2"
-var BuildTime = "2026-04-02"
+var Version = "v1.0.3"
+var BuildTime = "2026-04-08"
 
 const defaultTimerClkPeriod = 433
 const defaultCpuClkPeriod = 310
