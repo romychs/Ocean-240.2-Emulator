@@ -54,11 +54,11 @@ type ComputerType struct {
 	hShift         byte
 	cpuFrequency   uint32
 	//
-	debugger     *debug.Debugger
-	config       *config.OkEmuConfig
-	kbAck        atomic.Bool
-	fullSpeed    atomic.Bool
-	pendingReset atomic.Bool
+	debugger         *debug.Debugger
+	config           *config.OkEmuConfig
+	kbAck            atomic.Bool
+	fullSpeed        atomic.Bool
+	pendingHardReset atomic.Bool
 }
 
 type Snapshot struct {
@@ -110,10 +110,28 @@ func (c *ComputerType) MemWrite(addr uint16, val byte) {
 func NewComputer(cfg *config.OkEmuConfig, deb *debug.Debugger) *ComputerType {
 	c := ComputerType{}
 	c.config = cfg
-	c.memory = Memory{}
-	c.memory.Init(cfg.MonitorFile, cfg.CPMFile)
-
 	c.cpu = z80go.NewCPU(&c)
+	c.debugger = deb
+
+	c.HardReset()
+
+	return &c
+}
+
+// Reset Only CPU reset
+func (c *ComputerType) Reset() {
+	// CPU
+	c.cpu.Reset()
+	c.cycles = 0
+	c.tstatesPartial = 0
+}
+
+// HardReset full computer reset
+func (c *ComputerType) HardReset() {
+	c.cpu.Reset()
+
+	c.memory = Memory{}
+	c.memory.Init(c.config.MonitorFile, c.config.CPMFile)
 
 	c.cycles = 0
 	c.tstatesPartial = 0
@@ -126,24 +144,17 @@ func NewComputer(cfg *config.OkEmuConfig, deb *debug.Debugger) *ComputerType {
 
 	c.vShift = 0
 	c.hShift = 0
-	//c.aOffset = 0x100
 
 	c.pit = pit.New()
 	c.kbAck.Store(false)
 	c.usart = usart.New()
 	c.pic = pic.NewI8259()
-	c.fdc = fdc.NewFDC(cfg)
-	c.cpuFrequency = DefaultCPUFrequency
-	c.debugger = deb
-	c.fullSpeed.Store(false)
-	c.pendingReset.Store(false)
-	return &c
-}
+	c.fdc = fdc.NewFDC(c.config)
 
-func (c *ComputerType) Reset() {
-	c.cpu.Reset()
-	c.cycles = 0
-	c.tstatesPartial = 0
+	c.cpuFrequency = DefaultCPUFrequency
+	c.fullSpeed.Store(false)
+	c.pendingHardReset.Store(false)
+
 }
 
 func (c *ComputerType) getContext() map[string]interface{} {
@@ -524,11 +535,11 @@ func (c *ComputerType) FullSpeed() bool {
 }
 
 func (c *ComputerType) SetPendingReset(pending bool) {
-	c.pendingReset.Store(pending)
+	c.pendingHardReset.Store(pending)
 }
 
 func (c *ComputerType) PendingReset() bool {
-	return c.pendingReset.Load()
+	return c.pendingHardReset.Load()
 }
 
 func (c *ComputerType) LoadFloppyData(drive byte, reader fyne.URIReadCloser) error {

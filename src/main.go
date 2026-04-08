@@ -40,8 +40,6 @@ const diffScale = 15.0
 ////go:embed bin/jack.com
 //var ramBytes []byte
 
-var needReset = false
-
 func main() {
 	fmt.Printf("Starting Ocean-240.2 emulator %s build at %s\n", Version, BuildTime)
 
@@ -205,7 +203,7 @@ func cpuClock(computer *okean240.ComputerType, dezog debug.DEZOG) {
 
 	for {
 		elapsed := hrtime.Since(timeStart)
-		if int64(elapsed) >= cpuClkPeriod.Load() {
+		if computer.FullSpeed() || int64(elapsed) >= cpuClkPeriod.Load() {
 			timeStart = hrtime.Now()
 			bp = 0
 			bpType = 0
@@ -215,6 +213,7 @@ func cpuClock(computer *okean240.ComputerType, dezog debug.DEZOG) {
 			if computer.FullSpeed() {
 				// Max frequency
 				_, bp, bpType = computer.Do()
+				nextTick = cpuTicks.Load()
 			} else if cpuTicks.Load() >= nextTick {
 				var t uint32
 				t, bp, bpType = computer.Do()
@@ -226,9 +225,8 @@ func cpuClock(computer *okean240.ComputerType, dezog debug.DEZOG) {
 			if bp > 0 || bpType != 0 {
 				dezog.BreakpointHit(bp, bpType)
 			}
-			if needReset {
-				computer.Reset()
-				needReset = false
+			if computer.PendingReset() {
+				computer.HardReset()
 			}
 		}
 	}

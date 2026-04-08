@@ -2,5 +2,6 @@
 *.lst
 *.tmp
 *.sh
+*.log
 .idea/
 src/.idea/

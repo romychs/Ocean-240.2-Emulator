@@ -6,6 +6,7 @@ import (
 	"okemu/config"
 	"okemu/okean240"
 	"okemu/okean240/fdc"
+	"os"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -93,7 +94,16 @@ func newOkdOpenDialog(drive byte, c *okean240.ComputerType, w fyne.Window, confi
 		_ = reader.Close()
 	}, w)
 	fod.SetFileName(config.FDC[drive].FloppyFile)
+	cwd, e := os.Getwd()
+	if e == nil {
+		uri, e := storage.ListerForURI(storage.NewFileURI(cwd))
+		if e == nil {
+			fod.SetLocation(uri)
+		}
+	}
+	fod.SetTitleText(fmt.Sprintf("Load floppy %s: image", string(rune(int(drive+66)))))
 	fod.SetFilter(storage.NewExtensionFileFilter(floppyDriveExt))
+	fod.Resize(fyne.NewSize(580, 500))
 	return fod
 }
 

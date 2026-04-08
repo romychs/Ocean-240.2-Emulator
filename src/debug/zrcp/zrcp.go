@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"okemu/config"
 	"okemu/debug"
@@ -12,6 +13,7 @@ import (
 	"okemu/okean240"
 	"os"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -74,6 +76,7 @@ var commandHandlers = map[string]CommandHandler{
 	"hexdump":                 {(*ZRCP).handleHexDump, "Dumps memory at address, showing hex and ascii"},
 	"load-binary":             {(*ZRCP).handleLoadBinary, "Load binary file \"file\" at address \"addr\" with length \"len\", on the current memory zone"},
 	"quit":                    {(*ZRCP).handleEmptyHandler, "Closes connection"},
+	"reset-cpu":               {(*ZRCP).handleResetCPU, "Resets CPU"},
 	"read-memory":             {(*ZRCP).handleReadMemory, "Dumps memory at address"},
 	"reset-tstates-partial":   {(*ZRCP).handleResetTStatesPartial, "Resets the t-states partial counter"},
 	"run":                     {(*ZRCP).handleRun, "Run cpu when on cpu step mode"},
@@ -336,6 +339,8 @@ func (p *ZRCP) handleCPUHistory() (string, error) {
 			return p.stateResponse(history), nil
 		}
 		return "", errors.New("ERROR: index out of range")
+	case "get-size":
+		return strconv.Itoa(p.debugger.CpuHistorySize()), nil
 	case "ignrephalt", "ignrepldxr":
 		// ignore
 	default:
@@ -637,6 +642,7 @@ func (p *ZRCP) handleSetBreakpointPassCount() (string, error) {
 
 func (p *ZRCP) handleDisassemble() (string, error) {
 	var addr uint16
+	var size uint64
 	if len(p.params) == 0 {
 		addr = p.computer.CPUState().PC
 	} else {
@@ -645,9 +651,17 @@ func (p *ZRCP) handleDisassemble() (string, error) {
 		if e != nil {
 			return "", fmt.Errorf("error, illegal address: %s", p.params[0])
 		}
+		if len(p.params) == 2 {
+			size, e = parseUint64(p.params[1])
+			if e != nil {
+				return "", fmt.Errorf("error, illegal size: %s", p.params[1])
+			}
+		} else {
+			size = 1
+		}
 	}
 	res := p.disassembler.Disassm(addr)
-	log.Trace(res)
+	log.Tracef("DISASSM[0x%04X, %d]: %s", addr, size, res)
 	return res, nil
 }
 
@@ -699,6 +713,11 @@ func (p *ZRCP) handleGetRegisters() (string, error) {
 }
 
 func (p *ZRCP) handleHardResetCPU() (string, error) {
+	p.computer.HardReset()
+	return "", nil
+}
+
+func (p *ZRCP) handleResetCPU() (string, error) {
 	p.computer.Reset()
 	return "", nil
 }
@@ -936,8 +955,10 @@ func (p *ZRCP) handleGetMemBreakpoints() (string, error) {
 func (p *ZRCP) handleHelp() (string, error) {
 	var res strings.Builder
 	res.WriteString("Available commands:\n")
-	for k, v := range commandHandlers {
-		res.WriteString(fmt.Sprintf("%-*s%s\n", 24, k, v.desc))
+	commands := slices.Collect(maps.Keys(commandHandlers))
+	slices.Sort(commands)
+	for _, cmd := range commands {
+		res.WriteString(fmt.Sprintf("%-*s%s\n", 24, cmd, commandHandlers[cmd].desc))
 	}
 	res.WriteString("\nTotal commands: " + strconv.Itoa(len(commandHandlers)) + "\n")
 	return res.String(), nil
