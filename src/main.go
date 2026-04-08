@@ -55,7 +55,7 @@ func main() {
 	conf := config.GetConfig()
 
 	// Reconfigure logging by config values
-	//logger.ReconfigureLogging(conf)
+	logger.ReconfigureLogging(conf)
 
 	if runtime.GOOS == "windows" {
 		cpuClkPeriod.Store(windowsCpuClkPeriod)
